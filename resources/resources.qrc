@@ -1,0 +1,9 @@
+<RCC>
+    <qresource prefix="/">
+        <file>background.png</file>
+        <file>folder.png</file>
+        <file>github.png</file>
+        <file>mclovin.ico</file>
+        <file>style.qss</file>
+    </qresource>
+</RCC>

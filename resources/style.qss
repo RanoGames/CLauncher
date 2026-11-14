@@ -1,0 +1,364 @@
+/* CLauncher - Modern Dark Theme Stylesheet */
+
+QWidget {
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto", "Helvetica Neue", sans-serif;
+    color: #e2e8f0;
+}
+
+/* Tooltips */
+QToolTip {
+    background-color: #1e2330;
+    color: #f1f5f9;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
+/* Scrollbars */
+QScrollBar:vertical {
+    background: rgba(15, 17, 23, 0.8);
+    width: 8px;
+    margin: 0;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:vertical {
+    background: rgba(255, 255, 255, 0.2);
+    min-height: 24px;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background: rgba(255, 255, 255, 0.35);
+}
+
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+
+QScrollBar:horizontal {
+    background: rgba(15, 17, 23, 0.8);
+    height: 8px;
+    margin: 0;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:horizontal {
+    background: rgba(255, 255, 255, 0.2);
+    min-width: 24px;
+    border-radius: 4px;
+}
+
+QScrollBar::handle:horizontal:hover {
+    background: rgba(255, 255, 255, 0.35);
+}
+
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px;
+}
+
+/* Labels */
+QLabel {
+    color: #e2e8f0;
+    font-size: 12px;
+}
+
+/* Line Edits & Spin Boxes */
+QLineEdit, QSpinBox {
+    background-color: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: #ffffff;
+    padding: 6px 12px;
+    font-size: 12px;
+    selection-background-color: #3b82f6;
+}
+
+QLineEdit:hover, QSpinBox:hover {
+    border-color: rgba(255, 255, 255, 0.25);
+    background-color: rgba(255, 255, 255, 0.09);
+}
+
+QLineEdit:focus, QSpinBox:focus {
+    border-color: #3b82f6;
+    background-color: rgba(255, 255, 255, 0.11);
+}
+
+/* Combo Boxes */
+QComboBox {
+    background-color: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    color: #ffffff;
+    padding-left: 12px;
+    padding-right: 28px;
+    font-size: 13px;
+    font-weight: 600;
+    min-height: 38px;
+}
+
+QComboBox:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+QComboBox:focus {
+    border-color: #3b82f6;
+}
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 28px;
+    border-left: none;
+}
+
+QComboBox::down-arrow {
+    image: none;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid #94a3b8;
+    margin-right: 8px;
+}
+
+QComboBox::down-arrow:hover {
+    border-top-color: #ffffff;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #1a1e29;
+    color: #ffffff;
+    selection-background-color: #3b82f6;
+    selection-color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    outline: none;
+    padding: 4px;
+}
+
+QComboBox QAbstractItemView::item {
+    min-height: 28px;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+QComboBox QAbstractItemView::item:selected {
+    background-color: #3b82f6;
+}
+
+/* Push Buttons */
+QPushButton {
+    background-color: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    border-radius: 8px;
+    color: #ffffff;
+    padding: 6px 14px;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+QPushButton:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.24);
+    color: #ffffff;
+}
+
+QPushButton:pressed {
+    background-color: rgba(255, 255, 255, 0.18);
+}
+
+QPushButton:disabled {
+    background-color: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.06);
+    color: #64748b;
+}
+
+/* CheckBoxes */
+QCheckBox {
+    color: #e2e8f0;
+    font-size: 12px;
+    spacing: 8px;
+}
+
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+QCheckBox::indicator:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+QCheckBox::indicator:checked {
+    background-color: #3b82f6;
+    border-color: #60a5fa;
+}
+
+/* Sliders */
+QSlider::groove:horizontal {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+QSlider::sub-page:horizontal {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3b82f6, stop:1 #8b5cf6);
+    border-radius: 3px;
+}
+
+QSlider::handle:horizontal {
+    background: #ffffff;
+    border: 2px solid #8b5cf6;
+    width: 16px;
+    margin-top: -5px;
+    margin-bottom: -5px;
+    border-radius: 8px;
+}
+
+QSlider::handle:horizontal:hover {
+    background: #e2e8f0;
+    border-color: #a78bfa;
+}
+
+/* Progress Bars */
+QProgressBar {
+    background-color: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    text-align: center;
+    color: #ffffff;
+    font-size: 11px;
+}
+
+QProgressBar::chunk {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #43a047, stop:1 #81c784);
+    border-radius: 3px;
+}
+
+/* Tab Widget */
+QTabWidget::pane {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    background-color: rgba(18, 20, 28, 0.7);
+}
+
+QTabBar::tab {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: #94a3b8;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: none;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+    padding: 8px 18px;
+    font-weight: 600;
+    margin-right: 4px;
+}
+
+QTabBar::tab:selected {
+    background-color: rgba(59, 130, 246, 0.25);
+    color: #ffffff;
+    border-color: rgba(59, 130, 246, 0.6);
+}
+
+QTabBar::tab:hover:!selected {
+    background-color: rgba(255, 255, 255, 0.09);
+    color: #cbd5e1;
+}
+
+/* Hero Action Buttons */
+QPushButton#PlayMinecraft {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #10b981, stop:1 #059669);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 12px;
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 15px;
+}
+
+QPushButton#PlayMinecraft:hover {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #34d399, stop:1 #10b981);
+    border-color: rgba(255, 255, 255, 0.45);
+}
+
+QPushButton#PlayMinecraft:pressed {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #059669, stop:1 #047857);
+}
+
+QPushButton#DownLoadMinecraft {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3b82f6, stop:1 #2563eb);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 12px;
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 15px;
+}
+
+QPushButton#DownLoadMinecraft:hover {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #60a5fa, stop:1 #3b82f6);
+    border-color: rgba(255, 255, 255, 0.45);
+}
+
+QPushButton#DownLoadMinecraft:pressed {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2563eb, stop:1 #1d4ed8);
+}
+
+QPushButton#CancelInstallButton {
+    background-color: rgba(239, 68, 68, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 12px;
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+QPushButton#CancelInstallButton:hover {
+    background-color: rgba(239, 68, 68, 1.0);
+}
+
+QPushButton#CancelInstallButton:pressed {
+    background-color: rgba(185, 28, 28, 1.0);
+}
+
+/* Quick Action Pills */
+QPushButton.actionPill {
+    background-color: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    color: #e2e8f0;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+QPushButton.actionPill:hover {
+    background-color: rgba(255, 255, 255, 0.13);
+    border-color: rgba(255, 255, 255, 0.24);
+    color: #ffffff;
+}
+
+QPushButton.actionPill:pressed {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Mini Buttons */
+QPushButton.miniBtn {
+    background-color: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    border-radius: 8px;
+    color: #cbd5e1;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+QPushButton.miniBtn:hover {
+    background-color: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.26);
+    color: #ffffff;
+}
+
+QPushButton.miniBtn:pressed {
+    background-color: rgba(255, 255, 255, 0.22);
+}

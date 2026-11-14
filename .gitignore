@@ -1,0 +1,30 @@
+# Build outputs
+*.o
+*.obj
+*.so
+*.dll
+*.dylib
+*.a
+*.lib
+*.exe
+CLauncher
+
+# Qt generated files
+moc_*
+qrc_*
+ui_*
+.qmake.stash
+Makefile*
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+build/
+build-*/
+
+# IDE files
+.vscode/
+.idea/
+*.user
+*.user.*
