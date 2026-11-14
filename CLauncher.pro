@@ -1,6 +1,6 @@
 QT += core gui widgets network
 
-CONFIG += c++17
+CONFIG += c++23
 
 TEMPLATE = app
 TARGET = CLauncher
