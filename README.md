@@ -68,13 +68,17 @@ CLauncher/
 ├── CMakeLists.txt             # Modern CMake build configuration
 ├── BUILD.md                   # Detailed cross-platform compilation guide
 ├── README.md                  # Project overview and documentation
+├── install.ps1                # Automated Windows PowerShell installer
+├── install.bat                # Windows double-click batch launcher
+├── install.sh                 # Automated Linux shell installer
 ├── resources/
 │   ├── resources.qrc          # Qt Resource bundle
 │   ├── style.qss              # Custom dark theme stylesheet
 │   ├── background.png         # Launcher header/background art
 │   ├── folder.png             # UI icon for folder access
 │   ├── github.png             # UI icon for GitHub link
-│   └── mclovin.ico            # Application icon
+│   ├── mclovin.ico            # Application icon (multi-resolution ICO)
+│   └── clauncher.png          # High-resolution 256x256 application icon
 └── src/
     ├── main.cpp               # Application entry point and logging setup
     ├── core/                  # Core utilities and diagnostic subsystems
@@ -95,11 +99,14 @@ CLauncher/
     │   ├── ModloaderInstaller.h/.cpp # Fabric loader installer via Fabric Meta API
     │   ├── JavaDownloader.h/.cpp # Adoptium Temurin portable JRE downloader
     │   ├── ModManager.h/.cpp  # Local mods inspector, toggler, and manager
-    │   └── ModBrowser.h/.cpp  # Modrinth v2 API client and mod downloader
+    │   ├── ModBrowser.h/.cpp  # Modrinth v2 API client and mod downloader
+    │   ├── Account.h          # Account data model (Offline, Ely.by, Microsoft)
+    │   └── AccountManager.h/.cpp # Account persistence, active account, and Ely.by auth
     └── ui/                    # Graphical user interface
         ├── MainWindow.h/.cpp  # Main launcher dashboard with action dock
+        ├── AccountManagerDialog.h/.cpp # TLauncher-style 2-pane account manager
         ├── SettingsDialog.h/.cpp # Settings dialog (RAM, Java, game directory, theme)
-        ├── ConsoleWindow.h/.cpp  # Real-time game log viewer
+        ├── ConsoleWindow.h/.cpp  # Real-time game log viewer with export & syntax coloring
         ├── ModManagerDialog.h/.cpp # Installed mods manager dialog
         ├── ModBrowserDialog.h/.cpp # Modrinth mod catalog browser dialog
         └── SkinPreviewWidget.h/.cpp # Live 2D player avatar preview widget
@@ -107,7 +114,64 @@ CLauncher/
 
 ---
 
-## 🛠️ Quick Start
+## ⚡ Instant Installation
+
+Automated single-command installers are available for both Windows and Linux. They automatically download the latest verified release from GitHub, install the executable, configure application icons and desktop shortcuts, and set up system PATH integration.
+
+### 🪟 Windows Installation
+
+#### Option 1: PowerShell One-Liner (Recommended)
+Open **Windows PowerShell** (or Windows Terminal) and paste:
+```powershell
+irm https://raw.githubusercontent.com/RanoGames/CLauncher/master/install.ps1 | iex
+```
+*Automatically downloads the latest release, installs into `%LOCALAPPDATA%\Programs\CLauncher`, creates Desktop/Start Menu shortcuts, and adds the installation directory to your User `PATH`.*
+
+#### Option 2: Double-Click Batch Installer
+If you have cloned or downloaded the repository:
+- Double-click **`install.bat`** in Windows Explorer.
+- The installer automatically elevates execution policy and runs the automated setup.
+
+#### Option 3: Compile from Source via Installer
+To build directly from source using MSVC/CMake without manual setup:
+```powershell
+powershell -ExecutionPolicy Bypass -File install.ps1 -Build
+```
+
+---
+
+### 🐧 Linux Installation
+
+#### Option 1: Terminal One-Liner (Recommended)
+Open your terminal and run:
+```bash
+curl -fsSL https://raw.githubusercontent.com/RanoGames/CLauncher/master/install.sh | bash
+```
+*Installs the executable to `~/.local/bin/clauncher`, installs the `.desktop` launcher entry with 256x256 icons, and prompts to launch.*
+
+#### Option 2: Compile from Source via Installer
+To automatically clone and compile from source using CMake/Ninja or qmake6:
+```bash
+curl -fsSL https://raw.githubusercontent.com/RanoGames/CLauncher/master/install.sh | bash -s -- --build
+```
+Or if running locally from the repository:
+```bash
+chmod +x install.sh
+./install.sh --build
+```
+
+#### Installer Options
+| Option | Description |
+|---|---|
+| `-b, --build` | Clone and compile from source locally |
+| `-p, --prefix <DIR>` | Custom install directory prefix (default: `~/.local`) |
+| `--dry-run` | Simulate installation steps without modifying disk |
+| `--no-desktop` | Skip `.desktop` menu entry and icon creation |
+| `--no-launch` | Do not prompt to run CLauncher after installation |
+
+---
+
+## 🛠️ Manual Build from Source
 
 ### Linux Build (Quick)
 

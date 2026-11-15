@@ -4,6 +4,7 @@
         <file>folder.png</file>
         <file>github.png</file>
         <file>mclovin.ico</file>
+        <file>clauncher.png</file>
         <file>style.qss</file>
     </qresource>
 </RCC>
