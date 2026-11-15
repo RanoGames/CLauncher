@@ -14,8 +14,8 @@ namespace Constants {
 
     // URLs
     inline const QString VERSION_MANIFEST_URL = QStringLiteral("https://launchermeta.mojang.com/mc/game/version_manifest_v2.json");
-    inline const QString GITHUB_API_URL = QStringLiteral("https://api.github.com/repos/RanoGames/LightLauncher/releases/latest");
-    inline const QString GITHUB_REPO_URL = QStringLiteral("https://github.com/RanoGames/LightLauncher");
+    inline const QString GITHUB_API_URL = QStringLiteral("https://api.github.com/repos/RanoGames/CLauncher/releases/latest");
+    inline const QString GITHUB_REPO_URL = QStringLiteral("https://github.com/RanoGames/CLauncher");
     inline const QString RESOURCES_BASE_URL = QStringLiteral("https://resources.download.minecraft.net/");
     inline const QString ELY_BY_SKIN_URL = QStringLiteral("http://skinsystem.ely.by/textures/");
     inline const QString MODRINTH_API_URL = QStringLiteral("https://api.modrinth.com/v2");

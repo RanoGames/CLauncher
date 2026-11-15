@@ -9,7 +9,24 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
-find_package(ZLIB REQUIRED)
+
+find_package(ZLIB QUIET)
+if(NOT TARGET ZLIB::ZLIB)
+    include(FetchContent)
+    FetchContent_Declare(
+        zlib
+        GIT_REPOSITORY https://github.com/madler/zlib.git
+        GIT_TAG v1.3.1
+    )
+    FetchContent_MakeAvailable(zlib)
+    if(TARGET zlibstatic)
+        add_library(ZLIB::ZLIB ALIAS zlibstatic)
+        target_include_directories(zlibstatic INTERFACE ${zlib_SOURCE_DIR} ${zlib_BINARY_DIR})
+    elseif(TARGET zlib)
+        add_library(ZLIB::ZLIB ALIAS zlib)
+        target_include_directories(zlib INTERFACE ${zlib_SOURCE_DIR} ${zlib_BINARY_DIR})
+    endif()
+endif()
 
 set(CORE_SOURCES
     src/core/Constants.h

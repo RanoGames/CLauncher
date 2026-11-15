@@ -78,4 +78,5 @@ unix {
 
 win32 {
     LIBS += -luser32 -lshell32
+    win32-g++: LIBS += -lz
 }

@@ -1,0 +1,123 @@
+name: Release CI/CD
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    name: Build Linux (x86_64)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies & Qt6
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++ qt6-base-dev qt6-base-dev-tools zlib1g-dev libgl1-mesa-dev
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=23
+
+      - name: Build CLauncher
+        run: |
+          cmake --build build --config Release
+
+      - name: Package Linux Artifacts
+        run: |
+          mkdir -p package-linux
+          cp build/CLauncher package-linux/CLauncher
+          cp README.md LICENSE package-linux/
+          chmod +x package-linux/CLauncher
+          tar -czvf CLauncher-Linux-x86_64.tar.gz -C package-linux .
+          cp build/CLauncher CLauncher-Linux-x86_64
+          chmod +x CLauncher-Linux-x86_64
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: |
+            CLauncher-Linux-x86_64
+            CLauncher-Linux-x86_64.tar.gz
+
+  build-windows:
+    name: Build Windows (x86_64)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.7.2'
+          arch: 'win64_msvc2022_64'
+
+      - name: Configure CMake
+        shell: pwsh
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$env:Qt6_DIR"
+
+      - name: Build CLauncher
+        shell: pwsh
+        run: |
+          cmake --build build --config Release
+
+      - name: Package Windows Artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path package-windows
+          Copy-Item build\Release\CLauncher.exe package-windows\
+          Copy-Item README.md package-windows\
+          Copy-Item LICENSE package-windows\
+          windeployqt.exe --release --no-translations --compiler-runtime package-windows\CLauncher.exe
+          Compress-Archive -Path package-windows\* -DestinationPath CLauncher-Windows-x86_64.zip
+          Copy-Item build\Release\CLauncher.exe CLauncher.exe
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            CLauncher.exe
+            CLauncher-Windows-x86_64.zip
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            dist/CLauncher-Linux-x86_64
+            dist/CLauncher-Linux-x86_64.tar.gz
+            dist/CLauncher.exe
+            dist/CLauncher-Windows-x86_64.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false

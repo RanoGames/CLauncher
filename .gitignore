@@ -22,9 +22,30 @@ CMakeFiles/
 cmake_install.cmake
 build/
 build-*/
+*.dir/
 
-# IDE files
+# Runtime data & logs
+*.log
+cache/
+logs/
+crash-reports/
+runtime/
+versions/
+libraries/
+assets/
+mods/
+settings.json
+playtime.json
+
+# Archive / distribution files
+*.zip
+*.tar.gz
+*.AppImage
+
+# IDE & OS files
 .vscode/
 .idea/
 *.user
 *.user.*
+.DS_Store
+Thumbs.db

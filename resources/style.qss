@@ -107,6 +107,38 @@ QComboBox:focus {
     border-color: #3b82f6;
 }
 
+QComboBox:editable {
+    background-color: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+}
+
+QComboBox:editable:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+QComboBox:editable:focus {
+    border-color: #3b82f6;
+}
+
+QComboBox:editable QLineEdit,
+QComboBox QLineEdit {
+    background: transparent;
+    border: none;
+    padding: 0px 6px;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    selection-background-color: #3b82f6;
+}
+
+QComboBox:editable QLineEdit:focus,
+QComboBox QLineEdit:focus {
+    border: none;
+    background: transparent;
+}
+
 QComboBox::drop-down {
     subcontrol-origin: padding;
     subcontrol-position: top right;
@@ -116,12 +148,15 @@ QComboBox::drop-down {
 
 QComboBox::down-arrow {
     image: none;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
+    width: 0px;
+    height: 0px;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
     border-top: 5px solid #94a3b8;
     margin-right: 8px;
 }
 
+QComboBox:hover::down-arrow,
 QComboBox::down-arrow:hover {
     border-top-color: #ffffff;
 }

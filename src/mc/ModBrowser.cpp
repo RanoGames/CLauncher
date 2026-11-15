@@ -108,7 +108,7 @@ void ModBrowser::searchMods(const QString &query,
     url.setQuery(queryParams);
 
     QNetworkRequest request(url);
-    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("CLauncher/%1 (contact: github.com/RanoGames/LightLauncher)").arg(Constants::LAUNCHER_VERSION));
+    request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("CLauncher/%1 (contact: github.com/RanoGames/CLauncher)").arg(Constants::LAUNCHER_VERSION));
     request.setRawHeader("Accept", "application/json");
     request.setTransferTimeout(15000);
 

@@ -126,7 +126,7 @@ void MainWindow::setupUi()
 
     m_nicknameCombo = new QComboBox(m_dockCard);
     m_nicknameCombo->setEditable(true);
-    m_nicknameCombo->setGeometry(70, 32, 130, 48);
+    m_nicknameCombo->setGeometry(68, 34, 146, 44);
     m_nicknameCombo->setObjectName(QStringLiteral("Nickname"));
 
     // Attach regex validator ^[a-zA-Z0-9_]{3,16}$ to nickname input
@@ -136,7 +136,7 @@ void MainWindow::setupUi()
     }
 
     m_deleteNickButton = new QPushButton(QStringLiteral("✕"), m_dockCard);
-    m_deleteNickButton->setGeometry(204, 32, 36, 48);
+    m_deleteNickButton->setGeometry(218, 34, 30, 44);
     m_deleteNickButton->setProperty("class", "miniBtn");
     m_deleteNickButton->setToolTip(tr("Удалить никнейм из списка"));
 
@@ -324,6 +324,9 @@ void MainWindow::populateNicknames()
         m_nicknameCombo->setEditText(last);
     } else if (m_nicknameCombo->count() > 0) {
         m_nicknameCombo->setCurrentIndex(0);
+    }
+    if (m_nicknameCombo->lineEdit()) {
+        m_nicknameCombo->lineEdit()->setCursorPosition(0);
     }
     m_nicknameCombo->blockSignals(false);
 
