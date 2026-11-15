@@ -77,6 +77,7 @@ unix {
 }
 
 win32 {
+    DEFINES += NOMINMAX WIN32_LEAN_AND_MEAN
     LIBS += -luser32 -lshell32
     win32-g++: LIBS += -lz
 }

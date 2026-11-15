@@ -105,5 +105,6 @@ target_link_libraries(CLauncher PRIVATE
 )
 
 if(WIN32)
+    add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
     target_link_libraries(CLauncher PRIVATE user32 shell32)
 endif()

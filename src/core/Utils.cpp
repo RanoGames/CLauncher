@@ -12,6 +12,9 @@
 #include <algorithm>
 
 #if defined(Q_OS_WIN)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #elif defined(Q_OS_MAC)
 #include <sys/types.h>
@@ -243,7 +246,7 @@ QList<int> parseVersion(const QString &versionStr) {
 int compareVersions(const QString &v1, const QString &v2) {
     QList<int> t1 = parseVersion(v1);
     QList<int> t2 = parseVersion(v2);
-    int len = std::max(t1.size(), t2.size());
+    int len = static_cast<int>(std::max(t1.size(), t2.size()));
     for (int i = 0; i < len; ++i) {
         int x = (i < t1.size()) ? t1[i] : 0;
         int y = (i < t2.size()) ? t2[i] : 0;
