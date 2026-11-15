@@ -18,6 +18,7 @@ namespace Constants {
     inline const QString GITHUB_REPO_URL = QStringLiteral("https://github.com/RanoGames/LightLauncher");
     inline const QString RESOURCES_BASE_URL = QStringLiteral("https://resources.download.minecraft.net/");
     inline const QString ELY_BY_SKIN_URL = QStringLiteral("http://skinsystem.ely.by/textures/");
+    inline const QString MODRINTH_API_URL = QStringLiteral("https://api.modrinth.com/v2");
 
     // Default Settings Values
     inline constexpr int DEFAULT_MEMORY_MB = 2048;
@@ -69,6 +70,18 @@ namespace Constants {
 
     inline QString defaultAssetsDirectory() {
         return QDir::cleanPath(defaultMinecraftDirectory() + QStringLiteral("/assets"));
+    }
+
+    inline QString defaultModsDirectory() {
+        return QDir::cleanPath(defaultMinecraftDirectory() + QStringLiteral("/mods"));
+    }
+
+    inline QString defaultCrashReportsDirectory() {
+        return QDir::cleanPath(defaultMinecraftDirectory() + QStringLiteral("/crash-reports"));
+    }
+
+    inline QString defaultLogsDirectory() {
+        return QDir::cleanPath(defaultMinecraftDirectory() + QStringLiteral("/logs"));
     }
 
 } // namespace Constants

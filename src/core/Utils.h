@@ -17,6 +17,7 @@ namespace Utils {
 
     // System info & RAM
     quint64 getTotalSystemMemoryMb();
+    inline quint64 getSystemTotalRamMb() { return getTotalSystemMemoryMb(); }
     quint64 getOptimalRamMb();
 
     // Disk space

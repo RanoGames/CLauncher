@@ -299,19 +299,19 @@ QString GameLauncher::buildClasspath(const QJsonObject &mergedVersion, const QSt
 
     // 2. Client JAR (or parent client jar)
     QString clientJarPath = QDir(mcDir).filePath(QStringLiteral("versions/%1/%1.jar").arg(versionId));
-    if (!QFile::exists(clientJarPath) && mergedVersion.contains(QStringLiteral("inheritsFrom"))) {
+    if ((!QFile::exists(clientJarPath) || QFileInfo(clientJarPath).size() == 0) && mergedVersion.contains(QStringLiteral("inheritsFrom"))) {
         const QString parentId = mergedVersion.value(QStringLiteral("inheritsFrom")).toString();
         const QString parentJar = QDir(mcDir).filePath(QStringLiteral("versions/%1/%1.jar").arg(parentId));
-        if (QFile::exists(parentJar)) {
+        if (QFile::exists(parentJar) && QFileInfo(parentJar).size() > 0) {
             clientJarPath = parentJar;
         }
     }
 
-    if (QFile::exists(clientJarPath)) {
+    if (QFile::exists(clientJarPath) && QFileInfo(clientJarPath).size() > 0) {
         cpEntries.append(clientJarPath);
     }
 
-#if defined(Q_OS_WIN)
+#if defined(Q_OS_WIN) || defined(_WIN32)
     return cpEntries.join(QLatin1Char(';'));
 #else
     return cpEntries.join(QLatin1Char(':'));
@@ -424,7 +424,7 @@ bool GameLauncher::buildLaunchCommand(const LaunchOptions &options,
     placeholders[QStringLiteral("launcher_name")] = options.launcherName.isEmpty() ? Constants::LAUNCHER_NAME : options.launcherName;
     placeholders[QStringLiteral("launcher_version")] = options.launcherVersion.isEmpty() ? Constants::LAUNCHER_VERSION : options.launcherVersion;
     placeholders[QStringLiteral("classpath")] = classpath;
-#if defined(Q_OS_WIN)
+#if defined(Q_OS_WIN) || defined(_WIN32)
     placeholders[QStringLiteral("classpath_separator")] = QStringLiteral(";");
 #else
     placeholders[QStringLiteral("classpath_separator")] = QStringLiteral(":");
@@ -463,10 +463,22 @@ bool GameLauncher::buildLaunchCommand(const LaunchOptions &options,
         }
     }
 
-    // Fallback legacy JVM arguments (< 1.13)
-    if (!hasModernJvmArgs) {
+    if (hasModernJvmArgs) {
+        bool hasCp = false;
+        for (const QString &arg : jvmArgs) {
+            if (arg == QStringLiteral("-cp") || arg == QStringLiteral("-classpath")) {
+                hasCp = true;
+                break;
+            }
+        }
+        if (!hasCp) {
+            jvmArgs.append(QStringLiteral("-cp"));
+            jvmArgs.append(classpath);
+        }
+    } else {
+        // Fallback legacy JVM arguments (< 1.13)
         jvmArgs.append(QStringLiteral("-Djava.library.path=%1").arg(nativesDir));
-#if defined(Q_OS_WIN)
+#if defined(Q_OS_WIN) || defined(_WIN32)
         jvmArgs.append(QStringLiteral("-Dos.name=Windows 10"));
         jvmArgs.append(QStringLiteral("-Dos.version=10.0"));
 #endif

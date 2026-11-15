@@ -182,9 +182,8 @@ bool isValidNickname(const QString &nickname) {
 }
 
 QString generateOfflinePlayerUuid(const QString &username) {
-    // Standard Minecraft offline UUID calculation (RFC 4122 v3 MD5 with zero namespace)
+    // Standard Minecraft offline UUID calculation (RFC 4122 v3 MD5: UUID.nameUUIDFromBytes(("OfflinePlayer:" + username).getBytes(UTF_8)))
     QByteArray data;
-    data.fill(0, 16); // 16 bytes of zero namespace
     data.append("OfflinePlayer:");
     data.append(username.toUtf8());
 

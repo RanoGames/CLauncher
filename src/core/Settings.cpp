@@ -4,6 +4,7 @@
 #include "Logger.h"
 
 #include <QFile>
+#include <QSaveFile>
 #include <QFileInfo>
 #include <QDir>
 #include <QJsonDocument>
@@ -99,16 +100,18 @@ bool Settings::save(const QString &filePath) const {
         dir.mkpath(QStringLiteral("."));
     }
 
-    QFile file(targetPath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+    QSaveFile file(targetPath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         LOG_ERROR(QStringLiteral("Failed to open settings file for writing: %1 (%2)").arg(targetPath, file.errorString()));
         return false;
     }
 
     QJsonDocument doc(obj);
     file.write(doc.toJson(QJsonDocument::Indented));
-    file.flush();
-    file.close();
+    if (!file.commit()) {
+        LOG_ERROR(QStringLiteral("Failed to commit settings file: %1 (%2)").arg(targetPath, file.errorString()));
+        return false;
+    }
 
     LOG_INFO(QStringLiteral("Settings saved successfully to: %1").arg(targetPath));
     const_cast<Settings *>(this)->settingsSaved();

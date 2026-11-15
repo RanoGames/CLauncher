@@ -8,12 +8,16 @@
 #include <QFrame>
 #include <QPixmap>
 #include <QProcess>
+#include <QSize>
 
 #include "../mc/VersionManifest.h"
 #include "../mc/Downloader.h"
 #include "../mc/GameLauncher.h"
 #include "ConsoleWindow.h"
 #include "SettingsDialog.h"
+#include "SkinPreviewWidget.h"
+#include "ModManagerDialog.h"
+#include "ModBrowserDialog.h"
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -32,6 +36,8 @@ private slots:
     void onRefreshVersionsClicked();
     void onDeleteNicknameClicked();
     void onOpenSettingsClicked();
+    void onOpenModsClicked();
+    void onOpenModBrowserClicked();
     void onOpenConsoleClicked();
     void onOpenFolderClicked();
     void onDeleteVersionClicked();
@@ -71,6 +77,8 @@ private:
     // Central & Background
     QWidget *m_centralWidget{nullptr};
     QPixmap m_bgPixmap;
+    QPixmap m_cachedScaledBg;
+    QSize m_cachedBgSize;
 
     // Header / Badges
     QLabel *m_versionBadgeLabel{nullptr};
@@ -82,8 +90,9 @@ private:
     // Dock Card
     QFrame *m_dockCard{nullptr};
 
-    // Nickname
+    // Nickname & Skin
     QLabel *m_nicknameTitleLabel{nullptr};
+    SkinPreviewWidget *m_skinPreview{nullptr};
     QComboBox *m_nicknameCombo{nullptr};
     QPushButton *m_deleteNickButton{nullptr};
 
@@ -99,8 +108,10 @@ private:
 
     // Quick action pills
     QPushButton *m_settingsButton{nullptr};
-    QPushButton *m_consoleButton{nullptr};
+    QPushButton *m_modsButton{nullptr};
+    QPushButton *m_modBrowserButton{nullptr};
     QPushButton *m_folderButton{nullptr};
+    QPushButton *m_consoleButton{nullptr};
     QPushButton *m_deleteVersionButton{nullptr};
     QPushButton *m_gitHubButton{nullptr};
 

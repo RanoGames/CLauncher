@@ -25,6 +25,7 @@ public:
     // Formatting
     static QString formatSeconds(qint64 seconds);
     QPair<QString, QString> getPlaytimeStats(const QString &version = QString()) const;
+    inline QPair<QString, QString> formattedStats(const QString &version = QString()) const { return getPlaytimeStats(version); }
 
     // Active session tracking
     void startSession(const QString &version);

@@ -124,6 +124,7 @@ void Downloader::startDownloadChain(const QString &versionId) {
         req.setHeader(QNetworkRequest::UserAgentHeader,
                       QStringLiteral("%1/%2").arg(Constants::LAUNCHER_NAME, Constants::LAUNCHER_VERSION));
         req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+        req.setTransferTimeout(15000);
 
         QNetworkReply *reply = m_nam->get(req);
         connect(reply, &QNetworkReply::finished, this, [this, reply, versionId]() {
@@ -168,6 +169,7 @@ void Downloader::fetchVersionJson(const QString &versionId, const QString &jsonU
     req.setHeader(QNetworkRequest::UserAgentHeader,
                   QStringLiteral("%1/%2").arg(Constants::LAUNCHER_NAME, Constants::LAUNCHER_VERSION));
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    req.setTransferTimeout(15000);
 
     QNetworkReply *reply = m_nam->get(req);
     connect(reply, &QNetworkReply::finished, this, [this, reply, versionId]() {
@@ -497,6 +499,7 @@ void Downloader::prepareDownloadQueue(const QString &versionId, const QJsonObjec
                 aReq.setHeader(QNetworkRequest::UserAgentHeader,
                                QStringLiteral("%1/%2").arg(Constants::LAUNCHER_NAME, Constants::LAUNCHER_VERSION));
                 aReq.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+                aReq.setTransferTimeout(15000);
 
                 QNetworkReply *aReply = m_nam->get(aReq);
                 connect(aReply, &QNetworkReply::finished, this, [this, aReply, indexDest, indexId, versionId]() {
@@ -617,7 +620,7 @@ void Downloader::processQueue() {
         req.setHeader(QNetworkRequest::UserAgentHeader,
                       QStringLiteral("%1/%2").arg(Constants::LAUNCHER_NAME, Constants::LAUNCHER_VERSION));
         req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
-        req.setTransferTimeout(30000);
+        req.setTransferTimeout(15000);
 
         QNetworkReply *reply = m_nam->get(req);
 
@@ -753,16 +756,6 @@ void Downloader::finishInstallation() {
 
     emit statusChanged(QStringLiteral("Extracting native libraries..."));
     extractAllNatives();
-
-    // Ensure client jar exists even as empty stub if version is a modloader
-    const QString versionDir = QDir(m_minecraftDir).filePath(QStringLiteral("versions/%1").arg(m_targetVersionId));
-    const QString clientJar = QDir(versionDir).filePath(QStringLiteral("%1.jar").arg(m_targetVersionId));
-    if (!QFile::exists(clientJar)) {
-        QFile stub(clientJar);
-        if (stub.open(QIODevice::WriteOnly)) {
-            stub.close();
-        }
-    }
 
     m_busy = false;
     LOG_INFO(QStringLiteral("Installation completed successfully for version %1").arg(m_targetVersionId));

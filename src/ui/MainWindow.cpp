@@ -4,7 +4,9 @@
 #include "../core/Utils.h"
 #include "../core/Logger.h"
 #include "../core/PlaytimeTracker.h"
+#include "../core/CrashAnalyzer.h"
 #include "../mc/JavaManager.h"
+#include "../mc/DiscordRpc.h"
 
 #include <QPainter>
 #include <QMessageBox>
@@ -15,6 +17,8 @@
 #include <QFont>
 #include <QIcon>
 #include <QLineEdit>
+#include <QRegularExpression>
+#include <QRegularExpressionValidator>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -29,6 +33,8 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
+    DiscordRpc::instance().stop();
+
     if (m_consoleWindow) {
         delete m_consoleWindow;
         m_consoleWindow = nullptr;
@@ -110,18 +116,27 @@ void MainWindow::setupUi()
         "}"
     );
 
-    // Dock Top Row: Nickname
+    // Dock Top Row: Nickname & Avatar
     m_nicknameTitleLabel = new QLabel(tr("👤 ИМЯ ИГРОКА"), m_dockCard);
     m_nicknameTitleLabel->setGeometry(16, 10, 220, 18);
     m_nicknameTitleLabel->setStyleSheet(QStringLiteral("color: #8e8e93; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;"));
 
+    m_skinPreview = new SkinPreviewWidget(m_dockCard);
+    m_skinPreview->setGeometry(16, 32, 48, 48);
+
     m_nicknameCombo = new QComboBox(m_dockCard);
     m_nicknameCombo->setEditable(true);
-    m_nicknameCombo->setGeometry(16, 32, 175, 48);
+    m_nicknameCombo->setGeometry(70, 32, 130, 48);
     m_nicknameCombo->setObjectName(QStringLiteral("Nickname"));
 
+    // Attach regex validator ^[a-zA-Z0-9_]{3,16}$ to nickname input
+    auto *nickValidator = new QRegularExpressionValidator(QRegularExpression(QStringLiteral("^[a-zA-Z0-9_]{3,16}$")), this);
+    if (m_nicknameCombo->lineEdit()) {
+        m_nicknameCombo->lineEdit()->setValidator(nickValidator);
+    }
+
     m_deleteNickButton = new QPushButton(QStringLiteral("✕"), m_dockCard);
-    m_deleteNickButton->setGeometry(196, 32, 42, 48);
+    m_deleteNickButton->setGeometry(204, 32, 36, 48);
     m_deleteNickButton->setProperty("class", "miniBtn");
     m_deleteNickButton->setToolTip(tr("Удалить никнейм из списка"));
 
@@ -158,32 +173,44 @@ void MainWindow::setupUi()
     m_cancelButton->setCursor(Qt::PointingHandCursor);
     m_cancelButton->hide();
 
-    // Dock Bottom Row: Quick Action Pills
+    // Dock Bottom Row: Quick Action Pills (7 buttons evenly spaced across 708px)
     const int btnY = 108;
     const int btnH = 44;
+    const int btnW = 96;
+    const int gap = 6;
 
     m_settingsButton = new QPushButton(tr("⚙ Настройки"), m_dockCard);
-    m_settingsButton->setGeometry(16, btnY, 134, btnH);
+    m_settingsButton->setGeometry(16, btnY, btnW, btnH);
     m_settingsButton->setProperty("class", "actionPill");
     m_settingsButton->setToolTip(tr("Настройки лаунчера и игры"));
 
-    m_consoleButton = new QPushButton(tr("💻 Консоль"), m_dockCard);
-    m_consoleButton->setGeometry(158, btnY, 134, btnH);
-    m_consoleButton->setProperty("class", "actionPill");
-    m_consoleButton->setToolTip(tr("Открыть консоль отладки и логов"));
+    m_modsButton = new QPushButton(tr("🧩 Моды"), m_dockCard);
+    m_modsButton->setGeometry(16 + 1 * (btnW + gap), btnY, btnW, btnH);
+    m_modsButton->setProperty("class", "actionPill");
+    m_modsButton->setToolTip(tr("Управление установленными модами"));
+
+    m_modBrowserButton = new QPushButton(tr("🌐 Каталог"), m_dockCard);
+    m_modBrowserButton->setGeometry(16 + 2 * (btnW + gap), btnY, btnW, btnH);
+    m_modBrowserButton->setProperty("class", "actionPill");
+    m_modBrowserButton->setToolTip(tr("Каталог и установка модов с Modrinth"));
 
     m_folderButton = new QPushButton(tr("📁 Папка"), m_dockCard);
-    m_folderButton->setGeometry(300, btnY, 134, btnH);
+    m_folderButton->setGeometry(16 + 3 * (btnW + gap), btnY, btnW, btnH);
     m_folderButton->setProperty("class", "actionPill");
     m_folderButton->setToolTip(tr("Открыть папку Minecraft"));
 
+    m_consoleButton = new QPushButton(tr("💻 Консоль"), m_dockCard);
+    m_consoleButton->setGeometry(16 + 4 * (btnW + gap), btnY, btnW, btnH);
+    m_consoleButton->setProperty("class", "actionPill");
+    m_consoleButton->setToolTip(tr("Открыть консоль отладки и логов"));
+
     m_deleteVersionButton = new QPushButton(tr("🗑 Удалить"), m_dockCard);
-    m_deleteVersionButton->setGeometry(442, btnY, 134, btnH);
+    m_deleteVersionButton->setGeometry(16 + 5 * (btnW + gap), btnY, btnW, btnH);
     m_deleteVersionButton->setProperty("class", "actionPill");
     m_deleteVersionButton->setToolTip(tr("Удалить выбранную версию с диска"));
 
     m_gitHubButton = new QPushButton(tr("🐙 GitHub"), m_dockCard);
-    m_gitHubButton->setGeometry(584, btnY, 140, btnH);
+    m_gitHubButton->setGeometry(16 + 6 * (btnW + gap), btnY, btnW, btnH);
     m_gitHubButton->setProperty("class", "actionPill");
     m_gitHubButton->setToolTip(tr("Открыть страницу проекта на GitHub"));
 
@@ -208,8 +235,10 @@ void MainWindow::setupConnections()
     connect(m_deleteNickButton, &QPushButton::clicked, this, &MainWindow::onDeleteNicknameClicked);
 
     connect(m_settingsButton, &QPushButton::clicked, this, &MainWindow::onOpenSettingsClicked);
-    connect(m_consoleButton, &QPushButton::clicked, this, &MainWindow::onOpenConsoleClicked);
+    connect(m_modsButton, &QPushButton::clicked, this, &MainWindow::onOpenModsClicked);
+    connect(m_modBrowserButton, &QPushButton::clicked, this, &MainWindow::onOpenModBrowserClicked);
     connect(m_folderButton, &QPushButton::clicked, this, &MainWindow::onOpenFolderClicked);
+    connect(m_consoleButton, &QPushButton::clicked, this, &MainWindow::onOpenConsoleClicked);
     connect(m_deleteVersionButton, &QPushButton::clicked, this, &MainWindow::onDeleteVersionClicked);
     connect(m_gitHubButton, &QPushButton::clicked, this, &MainWindow::onOpenGitHubClicked);
 
@@ -218,6 +247,8 @@ void MainWindow::setupConnections()
             this, &MainWindow::onVersionIndexChanged);
 
     if (m_nicknameCombo->lineEdit()) {
+        connect(m_nicknameCombo->lineEdit(), &QLineEdit::textChanged,
+                this, &MainWindow::onNicknameChanged);
         connect(m_nicknameCombo->lineEdit(), &QLineEdit::editingFinished,
                 this, &MainWindow::onNicknameChanged);
     }
@@ -250,6 +281,8 @@ void MainWindow::loadBackground()
     } else {
         m_bgPixmap.load(QStringLiteral(":/background.png"));
     }
+    m_cachedScaledBg = QPixmap();
+    m_cachedBgSize = QSize();
     update();
 }
 
@@ -258,7 +291,12 @@ void MainWindow::paintEvent(QPaintEvent *event)
     Q_UNUSED(event);
     QPainter painter(this);
     if (!m_bgPixmap.isNull()) {
-        painter.drawPixmap(rect(), m_bgPixmap.scaled(size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+        // Cache scaled background to avoid CPU spike on every repaint
+        if (m_cachedScaledBg.isNull() || m_cachedBgSize != size()) {
+            m_cachedScaledBg = m_bgPixmap.scaled(size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            m_cachedBgSize = size();
+        }
+        painter.drawPixmap(rect(), m_cachedScaledBg, QRect(0, 0, width(), height()));
     } else {
         painter.fillRect(rect(), QColor(18, 20, 28));
     }
@@ -267,6 +305,8 @@ void MainWindow::paintEvent(QPaintEvent *event)
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
     QMainWindow::resizeEvent(event);
+    m_cachedScaledBg = QPixmap();
+    m_cachedBgSize = QSize();
 }
 
 void MainWindow::populateNicknames()
@@ -286,6 +326,10 @@ void MainWindow::populateNicknames()
         m_nicknameCombo->setCurrentIndex(0);
     }
     m_nicknameCombo->blockSignals(false);
+
+    if (m_skinPreview) {
+        m_skinPreview->setUsername(m_nicknameCombo->currentText().trimmed());
+    }
 }
 
 void MainWindow::saveCurrentNickname()
@@ -301,61 +345,101 @@ void MainWindow::saveCurrentNickname()
 
 void MainWindow::loadVersions(bool forceRefresh)
 {
-    m_versionCombo->blockSignals(true);
-    m_versionCombo->clear();
-    m_versionCombo->setPlaceholderText(tr("Загрузка списка версий..."));
-    m_versionCombo->blockSignals(false);
-
-    m_statusLabel->setText(tr("Получение списка версий от Mojang..."));
+    m_statusLabel->setText(tr("Загрузка списка версий..."));
     m_statusLabel->show();
 
-    m_manifest.fetchManifest(forceRefresh, Settings::instance().filters());
+    // Check disk for installed versions first to show something immediately
+    QString versionsDir = Constants::defaultVersionsDirectory();
+    QDir vDir(versionsDir);
+    if (vDir.exists()) {
+        QStringList entries = vDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Time);
+        if (!entries.isEmpty() && m_versionCombo->count() == 0) {
+            m_versionCombo->blockSignals(true);
+            for (const QString &id : entries) {
+                QString jsonPath = QStringLiteral("%1/%2/%2.json").arg(versionsDir, id);
+                if (QFile::exists(jsonPath)) {
+                    m_versionCombo->addItem(id + tr(" [Установлено]"), id);
+                }
+            }
+            m_versionCombo->blockSignals(false);
+            updateActionButtonState();
+        }
+    }
+
+    m_manifest.fetchManifest(forceRefresh);
 }
 
 void MainWindow::onManifestLoaded(const QList<VersionEntry> &versions)
 {
     m_statusLabel->hide();
     m_versionCombo->blockSignals(true);
+
+    QString currentSelectedId = m_versionCombo->currentData().toString();
+    if (currentSelectedId.isEmpty()) {
+        currentSelectedId = Settings::instance().lastVersion();
+    }
+
     m_versionCombo->clear();
 
-    // First collect local versions that are on disk
+    const QStringList activeFilters = Settings::instance().filters();
     QString versionsDir = Constants::defaultVersionsDirectory();
-    QDir dir(versionsDir);
-    QStringList localVersions;
-    if (dir.exists()) {
-        const QStringList entries = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-        for (const QString &v : entries) {
-            if (isVersionInstalled(v)) {
-                localVersions.append(v);
+
+    int selectIndex = -1;
+
+    for (const VersionEntry &entry : versions) {
+        // Apply filters
+        if (!activeFilters.contains(entry.type)) {
+            continue;
+        }
+
+        QString display = entry.id;
+        QString jsonPath = QStringLiteral("%1/%2/%2.json").arg(versionsDir, entry.id);
+        bool installed = QFile::exists(jsonPath);
+
+        if (installed) {
+            display += tr(" [Установлено]");
+        } else if (entry.type == QStringLiteral("snapshot")) {
+            display += tr(" (снапшот)");
+        } else if (entry.type == QStringLiteral("old_beta")) {
+            display += tr(" (бета)");
+        } else if (entry.type == QStringLiteral("old_alpha")) {
+            display += tr(" (альфа)");
+        }
+
+        m_versionCombo->addItem(display, entry.id);
+
+        if (!currentSelectedId.isEmpty() && entry.id == currentSelectedId) {
+            selectIndex = m_versionCombo->count() - 1;
+        }
+    }
+
+    // Also check for local custom versions not in official manifest (e.g. Forge, Fabric)
+    QDir vDir(versionsDir);
+    if (vDir.exists()) {
+        const QStringList localDirs = vDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QString &localId : localDirs) {
+            // Check if already in combo
+            bool alreadyAdded = false;
+            for (int i = 0; i < m_versionCombo->count(); ++i) {
+                if (m_versionCombo->itemData(i).toString() == localId) {
+                    alreadyAdded = true;
+                    break;
+                }
+            }
+            if (!alreadyAdded) {
+                QString jsonPath = QStringLiteral("%1/%2/%2.json").arg(versionsDir, localId);
+                if (QFile::exists(jsonPath)) {
+                    m_versionCombo->addItem(localId + tr(" [Локальная]"), localId);
+                    if (!currentSelectedId.isEmpty() && localId == currentSelectedId) {
+                        selectIndex = m_versionCombo->count() - 1;
+                    }
+                }
             }
         }
     }
 
-    // Add local versions if not in remote list
-    QSet<QString> addedVersions;
-    for (const auto &v : versions) {
-        m_versionCombo->addItem(v.id, v.id);
-        addedVersions.insert(v.id);
-    }
-
-    for (const QString &local : localVersions) {
-        if (!addedVersions.contains(local)) {
-            m_versionCombo->addItem(local + tr(" (локальная)"), local);
-            addedVersions.insert(local);
-        }
-    }
-
-    // Restore last selected version
-    QString lastVer = Settings::instance().lastVersion();
-    int idx = -1;
-    if (!lastVer.isEmpty()) {
-        idx = m_versionCombo->findData(lastVer);
-    }
-    if (idx < 0 && !m_manifest.latestRelease().isEmpty()) {
-        idx = m_versionCombo->findData(m_manifest.latestRelease());
-    }
-    if (idx >= 0) {
-        m_versionCombo->setCurrentIndex(idx);
+    if (selectIndex >= 0) {
+        m_versionCombo->setCurrentIndex(selectIndex);
     } else if (m_versionCombo->count() > 0) {
         m_versionCombo->setCurrentIndex(0);
     }
@@ -366,86 +450,76 @@ void MainWindow::onManifestLoaded(const QList<VersionEntry> &versions)
 
 void MainWindow::onManifestError(const QString &errorMessage)
 {
-    m_statusLabel->setText(tr("Ошибка сети: список версий офлайн"));
-    m_statusLabel->show();
+    m_statusLabel->setText(tr("Ошибка получения версий (работает офлайн)"));
     LOG_WARN(QStringLiteral("Manifest fetch error: ") + errorMessage);
 
-    // Fallback: populate with installed local versions
-    m_versionCombo->blockSignals(true);
-    m_versionCombo->clear();
-
+    // Still check local versions
     QString versionsDir = Constants::defaultVersionsDirectory();
-    QDir dir(versionsDir);
-    if (dir.exists()) {
-        const QStringList entries = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-        for (const QString &v : entries) {
-            if (isVersionInstalled(v)) {
-                m_versionCombo->addItem(v, v);
+    QDir vDir(versionsDir);
+    if (vDir.exists() && m_versionCombo->count() == 0) {
+        m_versionCombo->blockSignals(true);
+        const QStringList localDirs = vDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QString &localId : localDirs) {
+            QString jsonPath = QStringLiteral("%1/%2/%2.json").arg(versionsDir, localId);
+            if (QFile::exists(jsonPath)) {
+                m_versionCombo->addItem(localId + tr(" [Офлайн]"), localId);
             }
         }
+        m_versionCombo->blockSignals(false);
     }
 
-    QString lastVer = Settings::instance().lastVersion();
-    int idx = m_versionCombo->findData(lastVer);
-    if (idx >= 0) {
-        m_versionCombo->setCurrentIndex(idx);
-    } else if (m_versionCombo->count() > 0) {
-        m_versionCombo->setCurrentIndex(0);
-    }
-
-    m_versionCombo->blockSignals(false);
     updateActionButtonState();
 }
 
 bool MainWindow::isVersionInstalled(const QString &versionId) const
 {
     if (versionId.isEmpty()) return false;
-    QString dirPath = Constants::defaultVersionsDirectory() + QStringLiteral("/") + versionId;
-    QString jarPath = dirPath + QStringLiteral("/") + versionId + QStringLiteral(".jar");
-    QString jsonPath = dirPath + QStringLiteral("/") + versionId + QStringLiteral(".json");
-    return QFile::exists(jarPath) || QFile::exists(jsonPath);
+    QString jsonPath = QStringLiteral("%1/%2/%2.json")
+                           .arg(Constants::defaultVersionsDirectory(), versionId);
+    return QFile::exists(jsonPath);
 }
 
 void MainWindow::updateActionButtonState()
 {
+    if (m_isGameRunning) {
+        m_playButton->setEnabled(false);
+        m_playButton->setText(tr("В ИГРЕ..."));
+        m_playButton->show();
+        m_downloadButton->hide();
+        m_cancelButton->hide();
+        m_versionCombo->setEnabled(false);
+        m_refreshVersionsButton->setEnabled(false);
+        return;
+    }
+
+    m_versionCombo->setEnabled(true);
+    m_refreshVersionsButton->setEnabled(true);
+
     if (m_isDownloading) {
         m_playButton->hide();
         m_downloadButton->hide();
         m_cancelButton->show();
-        m_versionCombo->setEnabled(false);
-        m_nicknameCombo->setEnabled(false);
-        m_refreshVersionsButton->setEnabled(false);
-        m_settingsButton->setEnabled(false);
+        m_cancelButton->setEnabled(true);
         return;
     }
 
     m_cancelButton->hide();
-    m_versionCombo->setEnabled(true);
-    m_nicknameCombo->setEnabled(true);
-    m_refreshVersionsButton->setEnabled(true);
-    m_settingsButton->setEnabled(true);
 
-    if (m_isGameRunning) {
-        m_playButton->show();
-        m_downloadButton->hide();
-        m_playButton->setText(tr("▶ ИГРАЕТ..."));
-        m_playButton->setEnabled(false);
-        return;
+    QString version = m_versionCombo->currentData().toString();
+    if (version.isEmpty()) {
+        version = m_versionCombo->currentText().trimmed();
     }
 
-    QString currentVersion = m_versionCombo->currentData().toString();
-    if (currentVersion.isEmpty()) {
-        currentVersion = m_versionCombo->currentText().trimmed();
-    }
+    bool installed = isVersionInstalled(version);
 
-    if (isVersionInstalled(currentVersion)) {
-        m_playButton->setText(tr("▶ ИГРАТЬ"));
+    if (installed) {
         m_playButton->setEnabled(true);
+        m_playButton->setText(tr("▶ ИГРАТЬ"));
         m_playButton->show();
         m_downloadButton->hide();
     } else {
-        m_downloadButton->setText(tr("⬇ СКАЧАТЬ"));
         m_downloadButton->setEnabled(true);
+        m_downloadButton->setText(tr("⬇ СКАЧАТЬ"));
         m_downloadButton->show();
         m_playButton->hide();
     }
@@ -464,7 +538,12 @@ void MainWindow::onVersionIndexChanged(int index)
 
 void MainWindow::onNicknameChanged()
 {
+    QString nick = m_nicknameCombo->currentText().trimmed();
+    if (m_skinPreview) {
+        m_skinPreview->setUsername(nick);
+    }
     saveCurrentNickname();
+    updateActionButtonState();
 }
 
 void MainWindow::onDeleteNicknameClicked()
@@ -661,10 +740,17 @@ void MainWindow::onGameStarted()
 {
     m_statusLabel->setText(tr("Minecraft запущен!"));
     LOG_INFO(QStringLiteral("Minecraft process started successfully."));
+
+    QString ver = m_versionCombo->currentData().toString();
+    if (ver.isEmpty()) {
+        ver = m_versionCombo->currentText().trimmed();
+    }
+    DiscordRpc::instance().start(ver);
 }
 
 void MainWindow::onGameExited(int exitCode, QProcess::ExitStatus exitStatus)
 {
+    DiscordRpc::instance().stop();
     m_isGameRunning = false;
     PlaytimeTracker::instance().stopSession();
     updateActionButtonState();
@@ -674,6 +760,33 @@ void MainWindow::onGameExited(int exitCode, QProcess::ExitStatus exitStatus)
 
     if (exitCode != 0 && exitStatus == QProcess::NormalExit) {
         LOG_WARN(QStringLiteral("Minecraft exited with non-zero code ") + QString::number(exitCode));
+
+        // Trigger CrashAnalyzer
+        auto diagnosis = CrashAnalyzer::analyzeLatestCrash(Settings::instance().effectiveGameDir());
+        if (diagnosis && diagnosis->isCrash) {
+            QMessageBox crashBox(this);
+            crashBox.setIcon(QMessageBox::Critical);
+            crashBox.setWindowTitle(tr("Анализ ошибки Minecraft"));
+            crashBox.setText(QString(tr("<h3>%1</h3><p><b>Причина:</b> %2</p><p><b>Рекомендация:</b> %3</p>"))
+                                .arg(diagnosis->title, diagnosis->cause, diagnosis->solution));
+            if (!diagnosis->reportFile.isEmpty()) {
+                crashBox.setInformativeText(QString(tr("Отчет об ошибке: %1")).arg(diagnosis->reportFile));
+            }
+            if (!diagnosis->rawSnippet.isEmpty()) {
+                crashBox.setDetailedText(diagnosis->rawSnippet);
+            }
+            QPushButton *consoleBtn = crashBox.addButton(tr("Открыть консоль"), QMessageBox::ActionRole);
+            crashBox.addButton(tr("ОК"), QMessageBox::AcceptRole);
+            crashBox.exec();
+
+            if (crashBox.clickedButton() == consoleBtn) {
+                m_consoleWindow->show();
+                m_consoleWindow->raise();
+            }
+            return;
+        }
+
+        // Fallback dialog if CrashAnalyzer didn't find specific report
         if (!m_consoleWindow->isVisible()) {
             auto reply = QMessageBox::question(
                 this,
@@ -697,6 +810,7 @@ void MainWindow::onGameLogReceived(const QString &line)
 
 void MainWindow::onGameLaunchError(const QString &errorMessage)
 {
+    DiscordRpc::instance().stop();
     m_isGameRunning = false;
     PlaytimeTracker::instance().stopSession();
     updateActionButtonState();
@@ -714,6 +828,22 @@ void MainWindow::onOpenSettingsClicked()
         loadBackground();
         loadVersions(false);
     }
+}
+
+void MainWindow::onOpenModsClicked()
+{
+    ModManagerDialog dlg(this, Settings::instance().effectiveGameDir());
+    dlg.exec();
+}
+
+void MainWindow::onOpenModBrowserClicked()
+{
+    QString ver = m_versionCombo->currentData().toString();
+    if (ver.isEmpty()) {
+        ver = m_versionCombo->currentText().trimmed();
+    }
+    ModBrowserDialog dlg(this, ver, Settings::instance().effectiveGameDir());
+    dlg.exec();
 }
 
 void MainWindow::onOpenConsoleClicked()

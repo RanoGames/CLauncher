@@ -26,8 +26,8 @@ SettingsDialog::SettingsDialog(QWidget *parent, const QString &currentVersion)
 void SettingsDialog::setupUi()
 {
     setWindowTitle(tr("Настройки CLauncher"));
-    resize(600, 530);
-    setMinimumSize(540, 480);
+    resize(600, 560);
+    setMinimumSize(540, 500);
     setWindowIcon(QIcon(":/mclovin.ico"));
 
     auto *mainLayout = new QVBoxLayout(this);
@@ -43,6 +43,32 @@ void SettingsDialog::setupUi()
     auto *genLayout = new QVBoxLayout(tabGeneral);
     genLayout->setContentsMargins(16, 16, 16, 16);
     genLayout->setSpacing(12);
+
+    // Theme Selector
+    auto *themeTitle = new QLabel(tr("<b>Тема оформления:</b>"), tabGeneral);
+    genLayout->addWidget(themeTitle);
+
+    m_themeCombo = new QComboBox(tabGeneral);
+    m_themeCombo->addItem(tr("Современная тёмная (Modern Glass)"), QStringLiteral("modern"));
+    m_themeCombo->addItem(tr("Классическая тёмная (Classic)"), QStringLiteral("classic"));
+    genLayout->addWidget(m_themeCombo);
+
+    // Game Directory (.minecraft)
+    auto *gameDirTitle = new QLabel(tr("<b>Рабочая папка игры (.minecraft):</b>"), tabGeneral);
+    genLayout->addWidget(gameDirTitle);
+
+    auto *gameDirLayout = new QHBoxLayout();
+    m_gameDirEdit = new QLineEdit(tabGeneral);
+    m_gameDirEdit->setPlaceholderText(Constants::defaultMinecraftDirectory());
+    m_browseGameDirButton = new QPushButton(tr("Обзор..."), tabGeneral);
+    connect(m_browseGameDirButton, &QPushButton::clicked, this, &SettingsDialog::onBrowseGameDirClicked);
+    m_resetGameDirButton = new QPushButton(tr("По умолчанию"), tabGeneral);
+    connect(m_resetGameDirButton, &QPushButton::clicked, this, &SettingsDialog::onResetGameDirClicked);
+
+    gameDirLayout->addWidget(m_gameDirEdit, 3);
+    gameDirLayout->addWidget(m_browseGameDirButton);
+    gameDirLayout->addWidget(m_resetGameDirButton);
+    genLayout->addLayout(gameDirLayout);
 
     // Background image
     auto *bgTitle = new QLabel(tr("<b>Пользовательский фон главного окна:</b>"), tabGeneral);
@@ -122,35 +148,50 @@ void SettingsDialog::setupUi()
     sep->setStyleSheet("color: rgba(255, 255, 255, 0.1);");
     javaLayout->addWidget(sep);
 
-    // RAM allocation
+    // Memory Allocation
     auto *ramHeaderLayout = new QHBoxLayout();
     ramHeaderLayout->addWidget(new QLabel(tr("<b>Выделение оперативной памяти (RAM):</b>"), tabJava));
-    ramHeaderLayout->addStretch();
     m_memoryValueLabel = new QLabel(tabJava);
-    m_memoryValueLabel->setStyleSheet("color: #38bdf8; font-weight: bold; font-size: 13px;");
+    m_memoryValueLabel->setStyleSheet("color: #38bdf8; font-weight: bold;");
+    ramHeaderLayout->addStretch();
     ramHeaderLayout->addWidget(m_memoryValueLabel);
     javaLayout->addLayout(ramHeaderLayout);
 
     m_memorySlider = new QSlider(Qt::Horizontal, tabJava);
     m_memorySlider->setMinimum(Constants::MIN_MEMORY_MB);
-    quint64 totalSysMb = Utils::getTotalSystemMemoryMb();
-    int maxMem = (totalSysMb > Constants::MIN_MEMORY_MB) ? static_cast<int>(totalSysMb) : 8192;
-    m_memorySlider->setMaximum(maxMem);
-    m_memorySlider->setSingleStep(256);
+    quint64 totalSysRam = Utils::getTotalSystemMemoryMb();
+    int maxRam = (totalSysRam > 0) ? static_cast<int>(totalSysRam) : 16384;
+    m_memorySlider->setMaximum(maxRam);
+    m_memorySlider->setSingleStep(512);
     m_memorySlider->setPageStep(1024);
     connect(m_memorySlider, &QSlider::valueChanged, this, &SettingsDialog::onMemorySliderChanged);
     javaLayout->addWidget(m_memorySlider);
 
-    quint64 optMb = Utils::getOptimalRamMb();
-    m_autoRamButton = new QPushButton(QString(tr("⚡ Авто (%1 МБ)")).arg(optMb), tabJava);
+    quint64 optRam = Utils::getOptimalRamMb();
+    m_autoRamButton = new QPushButton(QString(tr("⚡ Автовыбор (%1 МБ)")).arg(optRam), tabJava);
+    m_autoRamButton->setStyleSheet(
+        "QPushButton {"
+        "  background-color: rgba(56, 189, 248, 0.15);"
+        "  border: 1px solid rgba(56, 189, 248, 0.4);"
+        "  border-radius: 8px;"
+        "  color: #38bdf8;"
+        "  font-weight: 600;"
+        "  padding: 6px 12px;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: rgba(56, 189, 248, 0.3);"
+        "  color: #ffffff;"
+        "}"
+    );
     connect(m_autoRamButton, &QPushButton::clicked, this, &SettingsDialog::onAutoRamClicked);
     javaLayout->addWidget(m_autoRamButton);
 
     // JVM Args
     auto *jvmTitle = new QLabel(tr("<b>Дополнительные аргументы JVM:</b>"), tabJava);
     javaLayout->addWidget(jvmTitle);
+
     m_jvmArgsEdit = new QLineEdit(tabJava);
-    m_jvmArgsEdit->setPlaceholderText(tr("-XX:+UseG1GC -XX:-UseAdaptiveSizePolicy"));
+    m_jvmArgsEdit->setPlaceholderText(tr("-XX:+UseG1GC -XX:+ParallelRefProcEnabled"));
     javaLayout->addWidget(m_jvmArgsEdit);
 
     javaLayout->addStretch();
@@ -167,8 +208,8 @@ void SettingsDialog::setupUi()
     auto *filterTitle = new QLabel(tr("<b>Отображаемые типы версий:</b>"), tabAdv);
     advLayout->addWidget(filterTitle);
 
-    m_releaseCheck = new QCheckBox(tr("Релизы (Release)"), tabAdv);
-    m_snapshotCheck = new QCheckBox(tr("Снапшоты (Snapshot)"), tabAdv);
+    m_releaseCheck = new QCheckBox(tr("Релизы (Releases)"), tabAdv);
+    m_snapshotCheck = new QCheckBox(tr("Снапшоты (Snapshots)"), tabAdv);
     m_oldBetaCheck = new QCheckBox(tr("Старые бета-версии (Old Beta)"), tabAdv);
     m_oldAlphaCheck = new QCheckBox(tr("Старые альфа-версии (Old Alpha)"), tabAdv);
 
@@ -177,15 +218,21 @@ void SettingsDialog::setupUi()
     advLayout->addWidget(m_oldBetaCheck);
     advLayout->addWidget(m_oldAlphaCheck);
 
-    auto *moreTitle = new QLabel(tr("<b>Дополнительно:</b>"), tabAdv);
-    advLayout->addWidget(moreTitle);
+    auto *advSep = new QFrame(tabAdv);
+    advSep->setFrameShape(QFrame::HLine);
+    advSep->setStyleSheet("color: rgba(255, 255, 255, 0.1);");
+    advLayout->addWidget(advSep);
 
-    m_showConsoleCheck = new QCheckBox(tr("Открывать консоль при запуске игры"), tabAdv);
-    m_validateNickCheck = new QCheckBox(tr("Проверять корректность никнейма"), tabAdv);
+    auto *otherTitle = new QLabel(tr("<b>Прочее:</b>"), tabAdv);
+    advLayout->addWidget(otherTitle);
+
+    m_showConsoleCheck = new QCheckBox(tr("Открывать консоль отладки при запуске игры"), tabAdv);
     advLayout->addWidget(m_showConsoleCheck);
+
+    m_validateNickCheck = new QCheckBox(tr("Проверять корректность никнейма (буквы, цифры, 3-16 симв.)"), tabAdv);
     advLayout->addWidget(m_validateNickCheck);
 
-    // Playtime tracker
+    // Playtime stats
     auto stats = PlaytimeTracker::instance().getPlaytimeStats(m_currentVersion);
     QString statText = QString(tr("<b>Общее время в игре:</b> <span style='color:#4ade80;'>%1</span>"))
                            .arg(stats.first);
@@ -270,6 +317,15 @@ void SettingsDialog::loadCurrentSettings()
 {
     const auto &s = Settings::instance();
 
+    int themeIdx = m_themeCombo->findData(s.uiTheme());
+    if (themeIdx >= 0) {
+        m_themeCombo->setCurrentIndex(themeIdx);
+    } else {
+        m_themeCombo->setCurrentIndex(0);
+    }
+
+    m_gameDirEdit->setText(s.gameDir().isEmpty() ? s.effectiveGameDir() : s.gameDir());
+
     m_fullscreenCheck->setChecked(s.fullscreen());
     m_resWidthSpin->setValue(s.resolutionWidth());
     m_resHeightSpin->setValue(s.resolutionHeight());
@@ -349,6 +405,28 @@ void SettingsDialog::onBrowseJavaClicked()
     }
 }
 
+void SettingsDialog::onBrowseGameDirClicked()
+{
+    QString current = m_gameDirEdit->text().trimmed();
+    if (current.isEmpty()) {
+        current = Constants::defaultMinecraftDirectory();
+    }
+    QString dir = QFileDialog::getExistingDirectory(
+        this,
+        tr("Выберите рабочую папку игры (.minecraft)"),
+        current,
+        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks
+    );
+    if (!dir.isEmpty()) {
+        m_gameDirEdit->setText(QDir::cleanPath(dir));
+    }
+}
+
+void SettingsDialog::onResetGameDirClicked()
+{
+    m_gameDirEdit->setText(Constants::defaultMinecraftDirectory());
+}
+
 void SettingsDialog::onChooseBackgroundClicked()
 {
     QString path = QFileDialog::getOpenFileName(
@@ -393,6 +471,15 @@ void SettingsDialog::onClearCacheClicked()
 void SettingsDialog::onSaveClicked()
 {
     auto &s = Settings::instance();
+
+    s.setUiTheme(m_themeCombo->currentData().toString());
+
+    QString chosenDir = m_gameDirEdit->text().trimmed();
+    if (chosenDir.isEmpty() || chosenDir == Constants::defaultMinecraftDirectory()) {
+        s.setGameDir(QString());
+    } else {
+        s.setGameDir(chosenDir);
+    }
 
     s.setFullscreen(m_fullscreenCheck->isChecked());
     s.setResolution(m_resWidthSpin->value(), m_resHeightSpin->value());

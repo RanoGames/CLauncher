@@ -8,6 +8,7 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QLabel>
+#include <QComboBox>
 #include <QStringList>
 
 class SettingsDialog : public QDialog {
@@ -26,6 +27,8 @@ private slots:
     void onAutoRamClicked();
     void onMemorySliderChanged(int value);
     void onClearCacheClicked();
+    void onBrowseGameDirClicked();
+    void onResetGameDirClicked();
 
 private:
     void setupUi();
@@ -40,6 +43,10 @@ private:
     QTabWidget *m_tabWidget{nullptr};
 
     // Tab 1: General
+    QComboBox *m_themeCombo{nullptr};
+    QLineEdit *m_gameDirEdit{nullptr};
+    QPushButton *m_browseGameDirButton{nullptr};
+    QPushButton *m_resetGameDirButton{nullptr};
     QCheckBox *m_fullscreenCheck{nullptr};
     QSpinBox *m_resWidthSpin{nullptr};
     QSpinBox *m_resHeightSpin{nullptr};

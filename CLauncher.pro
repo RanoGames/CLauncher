@@ -13,42 +13,68 @@ HEADERS += \
     src/core/Logger.h \
     src/core/Utils.h \
     src/core/Settings.h \
-    src/core/PlaytimeTracker.h
+    src/core/PlaytimeTracker.h \
+    src/core/CrashAnalyzer.h \
+    src/core/Updater.h
 
 SOURCES += \
     src/core/Logger.cpp \
     src/core/Utils.cpp \
     src/core/Settings.cpp \
-    src/core/PlaytimeTracker.cpp
+    src/core/PlaytimeTracker.cpp \
+    src/core/CrashAnalyzer.cpp \
+    src/core/Updater.cpp
 
 # Minecraft Engine Module
 HEADERS += \
     src/mc/VersionManifest.h \
     src/mc/Downloader.h \
     src/mc/JavaManager.h \
-    src/mc/GameLauncher.h
+    src/mc/GameLauncher.h \
+    src/mc/ModManager.h \
+    src/mc/ModBrowser.h \
+    src/mc/DiscordRpc.h \
+    src/mc/SkinManager.h \
+    src/mc/ModloaderInstaller.h \
+    src/mc/JavaDownloader.h
 
 SOURCES += \
     src/mc/VersionManifest.cpp \
     src/mc/Downloader.cpp \
     src/mc/JavaManager.cpp \
-    src/mc/GameLauncher.cpp
+    src/mc/GameLauncher.cpp \
+    src/mc/ModManager.cpp \
+    src/mc/ModBrowser.cpp \
+    src/mc/DiscordRpc.cpp \
+    src/mc/SkinManager.cpp \
+    src/mc/ModloaderInstaller.cpp \
+    src/mc/JavaDownloader.cpp
 
 # UI Module & Application Entry
 HEADERS += \
     src/ui/MainWindow.h \
     src/ui/SettingsDialog.h \
-    src/ui/ConsoleWindow.h
+    src/ui/ConsoleWindow.h \
+    src/ui/ModManagerDialog.h \
+    src/ui/ModBrowserDialog.h \
+    src/ui/SkinPreviewWidget.h
 
 SOURCES += \
     src/main.cpp \
     src/ui/MainWindow.cpp \
     src/ui/SettingsDialog.cpp \
-    src/ui/ConsoleWindow.cpp
+    src/ui/ConsoleWindow.cpp \
+    src/ui/ModManagerDialog.cpp \
+    src/ui/ModBrowserDialog.cpp \
+    src/ui/SkinPreviewWidget.cpp
 
 # Resources
 RESOURCES += \
     resources/resources.qrc
+
+unix {
+    LIBS += -lz
+}
 
 win32 {
     LIBS += -luser32 -lshell32

@@ -26,7 +26,7 @@ CLauncher is a high-performance, native C++20 / Qt6 Minecraft launcher. This doc
 
 ### Prerequisites & Package Managers
 
-Ensure your system has a modern C++ compiler (`g++` >= 11 or `clang++` >= 13), `make` or `ninja`, and Qt 6 development libraries (`core`, `gui`, `widgets`, `network`).
+Ensure your system has a modern C++ compiler (`g++` >= 11 or `clang++` >= 13), `make` or `ninja`, Qt 6 development libraries (`core`, `gui`, `widgets`, `network`), and `zlib` development headers (used for in-memory ZIP central directory and mod metadata decompression).
 
 #### Ubuntu / Debian (22.04 LTS, 24.04 LTS+)
 ```bash
@@ -38,6 +38,7 @@ sudo apt install -y build-essential \
                     libqt6widgets6 \
                     libqt6gui6 \
                     libqt6core6t64 \
+                    zlib1g-dev \
                     cmake ninja-build
 ```
 
@@ -45,12 +46,13 @@ sudo apt install -y build-essential \
 ```bash
 sudo dnf install -y gcc-c++ make cmake ninja-build \
                     qt6-qtbase-devel \
-                    qt6-qtbase-gui
+                    qt6-qtbase-gui \
+                    zlib-devel
 ```
 
 #### Arch Linux / Manjaro
 ```bash
-sudo pacman -Syu --needed base-devel qt6-base cmake ninja
+sudo pacman -Syu --needed base-devel qt6-base zlib cmake ninja
 ```
 
 ---
@@ -125,9 +127,10 @@ CLauncher runs natively on Windows 10/11 (64-bit) without requiring WSL, Cygwin,
      - `MinGW 11.2.0 (or newer) 64-bit`
    - Under `Developer and Designer Tools`, select `Qt Creator` and `CMake`.
 
-2. **C++ Compiler**:
+2. **C++ Compiler & Libraries**:
    - **Visual Studio 2022 Community** (or Professional/Enterprise): Check "Desktop development with C++".
-   - OR **MinGW-w64** (included in Qt installer or via MSYS2).
+   - OR **MinGW-w64** (included in Qt installer or via MSYS2: `pacman -S mingw-w64-x86_64-zlib`).
+   - For MSVC CLI / CMake builds, install `zlib` via vcpkg (`vcpkg install zlib:x64-windows`) or link Qt's internal bundled zlib.
 
 ---
 
@@ -254,6 +257,23 @@ mkdir build-win && cd build-win
 cmake -DCMAKE_TOOLCHAIN_FILE=../toolchain-mingw64.cmake -DCMAKE_BUILD_TYPE=Release ..
 make -j$(nproc)
 ```
+
+---
+
+## Ported Modules & Architecture
+
+CLauncher incorporates complete native C++ implementations of all essential Minecraft launcher features:
+
+| Module | Files | Purpose / Key Features |
+|---|---|---|
+| **Discord RPC** | `src/mc/DiscordRpc.h/.cpp` | Native QLocalSocket IPC client for Discord Rich Presence ($XDG_RUNTIME_DIR on Linux, named pipes on Windows). Handshake opcode 0, SET_ACTIVITY opcode 1. |
+| **Mod Manager** | `src/mc/ModManager.h/.cpp`<br>`src/ui/ModManagerDialog.h/.cpp` | In-memory ZIP central directory inspector (zlib DEFLATE), `.jar` <-> `.jar.disabled` toggle, metadata extraction (fabric, quilt, forge, neoforge), UI manager dialog. |
+| **Modrinth Browser** | `src/mc/ModBrowser.h/.cpp`<br>`src/ui/ModBrowserDialog.h/.cpp` | Modrinth v2 REST API integration, query & facet filtering, version matching, 1-click download with progress reporting. |
+| **Skin Avatar System** | `src/mc/SkinManager.h/.cpp`<br>`src/ui/SkinPreviewWidget.h/.cpp` | Ely.by and Mojang texture fetching, local cache, 8x8 face extraction with outer helmet composite, antialiased 2D avatar preview widget. |
+| **Crash Analyzer** | `src/core/CrashAnalyzer.h/.cpp` | Automated crash diagnostics parsing exit codes, `crash-reports/*.txt`, and `latest.log`. Diagnoses OOM, GPU/OpenGL, missing Java, and mod conflicts. |
+| **Adoptium JRE Downloader** | `src/mc/JavaDownloader.h/.cpp` | Automated portable JRE discovery, download, and extraction from Adoptium Temurin v3 API into `runtime/` for required Java versions (8, 17, 21). |
+| **Fabric Installer** | `src/mc/ModloaderInstaller.h/.cpp` | Fabric Meta API queries, version manifest generation, and automated installation into `versions/`. |
+| **Updater** | `src/core/Updater.h/.cpp` | GitHub Releases API update checker with semantic version comparison and direct asset downloading. |
 
 ---
 

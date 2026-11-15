@@ -3,6 +3,7 @@
 #include "Logger.h"
 
 #include <QFile>
+#include <QSaveFile>
 #include <QFileInfo>
 #include <QDir>
 #include <QJsonDocument>
@@ -79,16 +80,18 @@ bool PlaytimeTracker::save(const QString &filePath) const {
         dir.mkpath(QStringLiteral("."));
     }
 
-    QFile file(targetPath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
-        LOG_WARN(QStringLiteral("Failed to save playtime file: %1").arg(targetPath));
+    QSaveFile file(targetPath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        LOG_WARN(QStringLiteral("Failed to open playtime file for writing: %1 (%2)").arg(targetPath, file.errorString()));
         return false;
     }
 
     QJsonDocument doc(obj);
     file.write(doc.toJson(QJsonDocument::Indented));
-    file.flush();
-    file.close();
+    if (!file.commit()) {
+        LOG_WARN(QStringLiteral("Failed to commit playtime file: %1 (%2)").arg(targetPath, file.errorString()));
+        return false;
+    }
 
     return true;
 }

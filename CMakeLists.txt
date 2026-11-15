@@ -9,6 +9,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
+find_package(ZLIB REQUIRED)
 
 set(CORE_SOURCES
     src/core/Constants.h
@@ -20,6 +21,10 @@ set(CORE_SOURCES
     src/core/Settings.cpp
     src/core/PlaytimeTracker.h
     src/core/PlaytimeTracker.cpp
+    src/core/CrashAnalyzer.h
+    src/core/CrashAnalyzer.cpp
+    src/core/Updater.h
+    src/core/Updater.cpp
 )
 
 set(MC_SOURCES
@@ -31,6 +36,18 @@ set(MC_SOURCES
     src/mc/JavaManager.cpp
     src/mc/GameLauncher.h
     src/mc/GameLauncher.cpp
+    src/mc/ModManager.h
+    src/mc/ModManager.cpp
+    src/mc/ModBrowser.h
+    src/mc/ModBrowser.cpp
+    src/mc/DiscordRpc.h
+    src/mc/DiscordRpc.cpp
+    src/mc/SkinManager.h
+    src/mc/SkinManager.cpp
+    src/mc/ModloaderInstaller.h
+    src/mc/ModloaderInstaller.cpp
+    src/mc/JavaDownloader.h
+    src/mc/JavaDownloader.cpp
 )
 
 set(UI_SOURCES
@@ -41,6 +58,12 @@ set(UI_SOURCES
     src/ui/SettingsDialog.cpp
     src/ui/ConsoleWindow.h
     src/ui/ConsoleWindow.cpp
+    src/ui/ModManagerDialog.h
+    src/ui/ModManagerDialog.cpp
+    src/ui/ModBrowserDialog.h
+    src/ui/ModBrowserDialog.cpp
+    src/ui/SkinPreviewWidget.h
+    src/ui/SkinPreviewWidget.cpp
 )
 
 set(RESOURCES
@@ -61,6 +84,7 @@ target_link_libraries(CLauncher PRIVATE
     Qt6::Gui
     Qt6::Widgets
     Qt6::Network
+    ZLIB::ZLIB
 )
 
 if(WIN32)
