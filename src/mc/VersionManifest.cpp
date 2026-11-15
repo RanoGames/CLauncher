@@ -96,7 +96,7 @@ void VersionManifest::fetchManifest(bool forceRefresh, const QStringList &typeFi
     }
 
     LOG_INFO(QStringLiteral("Fetching version manifest from %1").arg(Constants::VERSION_MANIFEST_URL));
-    QNetworkRequest request(QUrl(Constants::VERSION_MANIFEST_URL));
+    QNetworkRequest request((QUrl(Constants::VERSION_MANIFEST_URL)));
     request.setHeader(QNetworkRequest::UserAgentHeader,
                       QStringLiteral("%1/%2").arg(Constants::LAUNCHER_NAME, Constants::LAUNCHER_VERSION));
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,

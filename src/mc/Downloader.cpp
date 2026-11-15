@@ -120,7 +120,7 @@ void Downloader::startDownloadChain(const QString &versionId) {
     } else {
         // Fetch manifest first to locate the version URL
         LOG_INFO(QStringLiteral("Fetching manifest to locate version %1...").arg(versionId));
-        QNetworkRequest req(QUrl(Constants::VERSION_MANIFEST_URL));
+        QNetworkRequest req((QUrl(Constants::VERSION_MANIFEST_URL)));
         req.setHeader(QNetworkRequest::UserAgentHeader,
                       QStringLiteral("%1/%2").arg(Constants::LAUNCHER_NAME, Constants::LAUNCHER_VERSION));
         req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
