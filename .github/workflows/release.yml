@@ -63,7 +63,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: '6.7.2'
-          arch: 'win64_msvc2022_64'
+          arch: 'win64_msvc2019_64'
 
       - name: Configure CMake
         shell: pwsh
@@ -79,12 +79,17 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path package-windows
-          Copy-Item build\Release\CLauncher.exe package-windows\
+          if (Test-Path "build\Release\CLauncher.exe") {
+              $exePath = "build\Release\CLauncher.exe"
+          } else {
+              $exePath = "build\CLauncher.exe"
+          }
+          Copy-Item $exePath package-windows\
           Copy-Item README.md package-windows\
           Copy-Item LICENSE package-windows\
           windeployqt.exe --release --no-translations --compiler-runtime package-windows\CLauncher.exe
           Compress-Archive -Path package-windows\* -DestinationPath CLauncher-Windows-x86_64.zip
-          Copy-Item build\Release\CLauncher.exe CLauncher.exe
+          Copy-Item $exePath CLauncher.exe
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
