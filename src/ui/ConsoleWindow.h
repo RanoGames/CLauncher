@@ -17,6 +17,8 @@ public:
 public slots:
     void appendLog(const QString &text);
     void clearLog();
+    void copyLog();
+    void exportLog();
 
 private slots:
     void onAutoScrollToggled(bool checked);
@@ -25,6 +27,8 @@ private:
     void setupUi();
 
     QPlainTextEdit *m_textEdit{nullptr};
+    QPushButton *m_copyButton{nullptr};
+    QPushButton *m_exportButton{nullptr};
     QPushButton *m_clearButton{nullptr};
     QPushButton *m_hideButton{nullptr};
     QCheckBox *m_autoScrollCheck{nullptr};

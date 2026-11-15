@@ -168,8 +168,11 @@ bool openInFileManager(const QString &path) {
 qint64 getDirectorySize(const QString &path) {
     qint64 size = 0;
     QDir dir(path);
-    QFileInfoList list = dir.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden);
+    QFileInfoList list = dir.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden | QDir::NoSymLinks);
     for (const QFileInfo &fileInfo : list) {
+        if (fileInfo.isSymLink()) {
+            continue;
+        }
         if (fileInfo.isDir()) {
             size += getDirectorySize(fileInfo.absoluteFilePath());
         } else {
@@ -182,6 +185,23 @@ qint64 getDirectorySize(const QString &path) {
 bool isValidNickname(const QString &nickname) {
     static const QRegularExpression re(QStringLiteral("^[a-zA-Z0-9_]{3,16}$"));
     return re.match(nickname).hasMatch();
+}
+
+QString sanitizeNickname(const QString &input) {
+    QString clean;
+    clean.reserve(input.length());
+    for (const QChar &ch : input) {
+        if ((ch >= QLatin1Char('a') && ch <= QLatin1Char('z')) ||
+            (ch >= QLatin1Char('A') && ch <= QLatin1Char('Z')) ||
+            (ch >= QLatin1Char('0') && ch <= QLatin1Char('9')) ||
+            ch == QLatin1Char('_')) {
+            clean.append(ch);
+        }
+    }
+    if (clean.length() > 16) {
+        clean.truncate(16);
+    }
+    return clean;
 }
 
 QString generateOfflinePlayerUuid(const QString &username) {
@@ -223,7 +243,37 @@ QString generateOfflinePlayerUuid(const QString &username) {
 
 QList<int> parseVersion(const QString &versionStr) {
     QList<int> result;
-    QStringList parts = versionStr.trimmed().split(QRegularExpression(QStringLiteral(R"([.\-_])")));
+    const QString trimmed = versionStr.trimmed();
+
+    // Check for Mojang snapshot pattern: e.g. "24w45a", "24w01a", "20w14infinite"
+    static const QRegularExpression snapRe(QStringLiteral(R"(^(\d{2})w(\d{2})([a-zA-Z]?)(.*)$)"));
+    auto snapMatch = snapRe.match(trimmed);
+    if (snapMatch.hasMatch()) {
+        const int year = snapMatch.captured(1).toInt();
+        const int week = snapMatch.captured(2).toInt();
+        int letter = 0;
+        const QString letStr = snapMatch.captured(3);
+        if (!letStr.isEmpty()) {
+            letter = letStr.toLower().at(0).toLatin1() - 'a' + 1;
+        }
+        result.append(year);
+        result.append(week);
+        result.append(letter);
+
+        const QString remainder = snapMatch.captured(4);
+        if (!remainder.isEmpty()) {
+            static const QRegularExpression numFinder(QStringLiteral(R"(\d+)"));
+            auto numIt = numFinder.globalMatch(remainder);
+            while (numIt.hasNext()) {
+                auto m = numIt.next();
+                result.append(m.captured(0).toInt());
+            }
+        }
+        return result;
+    }
+
+    // Standard version format (e.g. 1.20.1, 1.21-pre1, 0.43)
+    QStringList parts = trimmed.split(QRegularExpression(QStringLiteral(R"([.\-_])")));
     static const QRegularExpression numRe(QStringLiteral(R"(^(\d+))"));
 
     for (int i = 0; i < parts.size(); ++i) {

@@ -2,14 +2,17 @@
 #include "../core/Settings.h"
 #include "../core/Utils.h"
 #include "../core/Logger.h"
+#include "../mc/SkinManager.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QGridLayout>
 #include <QMessageBox>
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
 #include <QIcon>
-#include <QScrollBar>
+#include <QDesktopServices>
+#include <QUrl>
 
 AccountManagerDialog::AccountManagerDialog(QWidget *parent)
     : QDialog(parent)
@@ -23,14 +26,27 @@ AccountManagerDialog::AccountManagerDialog(QWidget *parent)
     connect(&AccountManager::instance(), &AccountManager::activeAccountChanged,
             this, &AccountManagerDialog::refreshAccounts);
 
+    connect(&SkinManager::instance(), &SkinManager::avatarLoaded,
+            this, [this](const QString &username, const QPixmap &avatar) {
+        if (!m_accountsList) return;
+        for (int i = 0; i < m_accountsList->count(); ++i) {
+            QListWidgetItem *it = m_accountsList->item(i);
+            QString accId = it->data(Qt::UserRole).toString();
+            Account a = AccountManager::instance().getAccount(accId);
+            if (a.isValid() && a.username.compare(username, Qt::CaseInsensitive) == 0) {
+                it->setIcon(QIcon(avatar.scaled(32, 32, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+            }
+        }
+    });
+
     refreshAccounts();
 }
 
 void AccountManagerDialog::setupUi()
 {
-    setWindowTitle(tr("Менеджер аккаунтов"));
-    resize(620, 520);
-    setMinimumSize(520, 420);
+    setWindowTitle(tr("Управление аккаунтами"));
+    resize(780, 560);
+    setMinimumSize(700, 480);
     setWindowIcon(QIcon(QStringLiteral(":/mclovin.ico")));
 
     setStyleSheet(
@@ -47,227 +63,470 @@ void AccountManagerDialog::setupUi()
     // ==========================================
     // 1. Header Toolbar
     // ==========================================
-    auto *headerLayout = new QHBoxLayout();
-    headerLayout->setSpacing(10);
+    auto *headerLayout = new QVBoxLayout();
+    headerLayout->setSpacing(2);
 
     m_headerTitle = new QLabel(tr("👥 Управление аккаунтами"), this);
     m_headerTitle->setStyleSheet(QStringLiteral("color: #ffffff; font-size: 16px; font-weight: bold;"));
     headerLayout->addWidget(m_headerTitle);
 
-    m_accountCountLabel = new QLabel(this);
-    m_accountCountLabel->setStyleSheet(QStringLiteral("color: #94a3b8; font-size: 12px; font-weight: 500;"));
-    headerLayout->addWidget(m_accountCountLabel);
-
-    headerLayout->addStretch(1);
-
-    m_toggleAddButton = new QPushButton(tr("➕ Добавить аккаунт"), this);
-    m_toggleAddButton->setCursor(Qt::PointingHandCursor);
-    m_toggleAddButton->setStyleSheet(
-        "QPushButton {"
-        "  background-color: rgba(16, 185, 129, 0.2);"
-        "  border: 1px solid #10b981;"
-        "  border-radius: 8px;"
-        "  color: #34d399;"
-        "  font-weight: 600;"
-        "  font-size: 12px;"
-        "  padding: 6px 14px;"
-        "}"
-        "QPushButton:hover {"
-        "  background-color: rgba(16, 185, 129, 0.35);"
-        "  color: #ffffff;"
-        "}"
-    );
-    connect(m_toggleAddButton, &QPushButton::clicked, this, &AccountManagerDialog::onToggleAddForm);
-    headerLayout->addWidget(m_toggleAddButton);
+    m_headerSubtitle = new QLabel(tr("Настройка учетных записей: Оффлайн, Ely.by и Microsoft (Xbox)"), this);
+    m_headerSubtitle->setStyleSheet(QStringLiteral("color: #94a3b8; font-size: 11px;"));
+    headerLayout->addWidget(m_headerSubtitle);
 
     mainLayout->addLayout(headerLayout);
 
     // ==========================================
-    // 2. Add Account Form (Collapsible)
+    // 2. Center Two-Pane Body
     // ==========================================
-    m_addFormFrame = new QFrame(this);
-    m_addFormFrame->setObjectName(QStringLiteral("AddFormFrame"));
-    m_addFormFrame->setStyleSheet(
-        "QFrame#AddFormFrame {"
-        "  background-color: rgba(26, 31, 46, 0.95);"
-        "  border: 1px solid rgba(16, 185, 129, 0.45);"
-        "  border-radius: 12px;"
-        "  padding: 10px;"
+    auto *panesLayout = new QHBoxLayout();
+    panesLayout->setSpacing(14);
+
+    // ------------------------------------------
+    // LEFT PANE: Accounts List & Controls (270px)
+    // ------------------------------------------
+    auto *leftPaneWidget = new QWidget(this);
+    leftPaneWidget->setFixedWidth(270);
+    auto *leftLayout = new QVBoxLayout(leftPaneWidget);
+    leftLayout->setContentsMargins(0, 0, 0, 0);
+    leftLayout->setSpacing(8);
+
+    m_leftHeaderLabel = new QLabel(tr("Сохранённые аккаунты:"), leftPaneWidget);
+    m_leftHeaderLabel->setStyleSheet(QStringLiteral("color: #cbd5e1; font-size: 12px; font-weight: 600;"));
+    leftLayout->addWidget(m_leftHeaderLabel);
+
+    m_accountsList = new QListWidget(leftPaneWidget);
+    m_accountsList->setIconSize(QSize(32, 32));
+    m_accountsList->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_accountsList->setStyleSheet(
+        "QListWidget {"
+        "  background-color: rgba(18, 20, 28, 0.9);"
+        "  border: 1px solid rgba(255, 255, 255, 0.12);"
+        "  border-radius: 10px;"
+        "  padding: 4px;"
         "}"
-    );
-    m_addFormFrame->hide();
-
-    auto *formMainLayout = new QVBoxLayout(m_addFormFrame);
-    formMainLayout->setContentsMargins(12, 10, 12, 10);
-    formMainLayout->setSpacing(8);
-
-    auto *formTitle = new QLabel(tr("➕ Создание нового аккаунта"), m_addFormFrame);
-    formTitle->setStyleSheet(QStringLiteral("color: #34d399; font-size: 12px; font-weight: bold;"));
-    formMainLayout->addWidget(formTitle);
-
-    auto *formRowLayout = new QHBoxLayout();
-    formRowLayout->setSpacing(12);
-
-    // Live Skin Preview
-    m_livePreview = new SkinPreviewWidget(m_addFormFrame);
-    formRowLayout->addWidget(m_livePreview, 0, Qt::AlignVCenter);
-
-    // Inputs column
-    auto *inputsLayout = new QVBoxLayout();
-    inputsLayout->setSpacing(6);
-
-    auto *fieldsRow = new QHBoxLayout();
-    fieldsRow->setSpacing(8);
-
-    auto *typeLabel = new QLabel(tr("Тип:"), m_addFormFrame);
-    typeLabel->setStyleSheet(QStringLiteral("color: #94a3b8; font-size: 12px; font-weight: 600;"));
-    fieldsRow->addWidget(typeLabel);
-
-    m_typeCombo = new QComboBox(m_addFormFrame);
-    m_typeCombo->addItem(tr("Оффлайн"), QStringLiteral("offline"));
-    m_typeCombo->addItem(tr("Ely.by"), QStringLiteral("elyby"));
-    m_typeCombo->setStyleSheet(
-        "QComboBox {"
-        "  background-color: rgba(15, 17, 26, 0.85);"
-        "  border: 1px solid rgba(255, 255, 255, 0.15);"
-        "  border-radius: 6px;"
+        "QListWidget::item {"
+        "  padding: 8px 10px;"
+        "  border-radius: 8px;"
         "  color: #f1f5f9;"
-        "  padding: 5px 10px;"
-        "  min-width: 90px;"
+        "  font-size: 12px;"
+        "  font-weight: 500;"
+        "  margin-bottom: 3px;"
+        "}"
+        "QListWidget::item:hover {"
+        "  background-color: rgba(255, 255, 255, 0.06);"
+        "}"
+        "QListWidget::item:selected {"
+        "  background-color: rgba(16, 185, 129, 0.22);"
+        "  border: 1px solid #10b981;"
+        "  color: #ffffff;"
+        "  font-weight: bold;"
         "}"
     );
-    fieldsRow->addWidget(m_typeCombo);
+    connect(m_accountsList, &QListWidget::itemSelectionChanged,
+            this, &AccountManagerDialog::onAccountListSelectionChanged);
+    leftLayout->addWidget(m_accountsList, 1);
 
-    auto *nickLabel = new QLabel(tr("Никнейм:"), m_addFormFrame);
-    nickLabel->setStyleSheet(QStringLiteral("color: #94a3b8; font-size: 12px; font-weight: 600;"));
-    fieldsRow->addWidget(nickLabel);
+    // Left pane buttons row 1: Add & Delete
+    auto *leftBtnRow1 = new QHBoxLayout();
+    leftBtnRow1->setSpacing(8);
 
-    m_usernameInput = new QLineEdit(m_addFormFrame);
-    m_usernameInput->setPlaceholderText(tr("Имя игрока (3-16 симв.)..."));
-    m_usernameInput->setClearButtonEnabled(true);
-    auto *regexValidator = new QRegularExpressionValidator(QRegularExpression(QStringLiteral("^[a-zA-Z0-9_]{3,16}$")), this);
-    m_usernameInput->setValidator(regexValidator);
-    m_usernameInput->setStyleSheet(
+    m_addBtn = new QPushButton(tr("➕ Добавить"), leftPaneWidget);
+    m_addBtn->setCursor(Qt::PointingHandCursor);
+    m_addBtn->setStyleSheet(
+        "QPushButton {"
+        "  background-color: rgba(16, 185, 129, 0.18);"
+        "  border: 1px solid #10b981;"
+        "  border-radius: 7px;"
+        "  color: #34d399;"
+        "  font-weight: 600;"
+        "  font-size: 12px;"
+        "  padding: 7px 12px;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #10b981;"
+        "  color: #ffffff;"
+        "}"
+    );
+    connect(m_addBtn, &QPushButton::clicked, this, &AccountManagerDialog::onAddNewAccountClicked);
+    leftBtnRow1->addWidget(m_addBtn);
+
+    m_deleteBtn = new QPushButton(tr("🗑 Удалить"), leftPaneWidget);
+    m_deleteBtn->setCursor(Qt::PointingHandCursor);
+    m_deleteBtn->setStyleSheet(
+        "QPushButton {"
+        "  background-color: rgba(239, 68, 68, 0.15);"
+        "  border: 1px solid rgba(239, 68, 68, 0.5);"
+        "  border-radius: 7px;"
+        "  color: #f87171;"
+        "  font-weight: 600;"
+        "  font-size: 12px;"
+        "  padding: 7px 12px;"
+        "}"
+        "QPushButton:hover:enabled {"
+        "  background-color: #ef4444;"
+        "  color: #ffffff;"
+        "}"
+        "QPushButton:disabled {"
+        "  background-color: rgba(255, 255, 255, 0.04);"
+        "  border: 1px solid rgba(255, 255, 255, 0.08);"
+        "  color: #64748b;"
+        "}"
+    );
+    connect(m_deleteBtn, &QPushButton::clicked, this, &AccountManagerDialog::onDeleteAccountClicked);
+    leftBtnRow1->addWidget(m_deleteBtn);
+
+    leftLayout->addLayout(leftBtnRow1);
+
+    // Left pane button row 2: Make Active
+    m_makeActiveBtn = new QPushButton(tr("✓ Сделать активным"), leftPaneWidget);
+    m_makeActiveBtn->setCursor(Qt::PointingHandCursor);
+    m_makeActiveBtn->setStyleSheet(
+        "QPushButton {"
+        "  background-color: rgba(14, 165, 233, 0.18);"
+        "  border: 1px solid #0ea5e9;"
+        "  border-radius: 7px;"
+        "  color: #38bdf8;"
+        "  font-weight: 600;"
+        "  font-size: 12px;"
+        "  padding: 8px 12px;"
+        "}"
+        "QPushButton:hover:enabled {"
+        "  background-color: #0ea5e9;"
+        "  color: #ffffff;"
+        "}"
+        "QPushButton:disabled {"
+        "  background-color: rgba(255, 255, 255, 0.04);"
+        "  border: 1px solid rgba(255, 255, 255, 0.08);"
+        "  color: #64748b;"
+        "}"
+    );
+    connect(m_makeActiveBtn, &QPushButton::clicked, this, &AccountManagerDialog::onMakeActiveClicked);
+    leftLayout->addWidget(m_makeActiveBtn);
+
+    panesLayout->addWidget(leftPaneWidget);
+
+    // ------------------------------------------
+    // RIGHT PANE: Account Configuration Panel
+    // ------------------------------------------
+    m_configPanel = new QFrame(this);
+    m_configPanel->setObjectName(QStringLiteral("ConfigPanel"));
+    m_configPanel->setStyleSheet(
+        "QFrame#ConfigPanel {"
+        "  background-color: rgba(20, 24, 36, 0.95);"
+        "  border: 1px solid rgba(255, 255, 255, 0.12);"
+        "  border-radius: 12px;"
+        "  padding: 14px;"
+        "}"
+    );
+
+    auto *configLayout = new QVBoxLayout(m_configPanel);
+    configLayout->setContentsMargins(14, 12, 14, 12);
+    configLayout->setSpacing(12);
+
+    m_panelTitleLabel = new QLabel(tr("Настройка аккаунта"), m_configPanel);
+    m_panelTitleLabel->setStyleSheet(QStringLiteral("color: #ffffff; font-size: 14px; font-weight: bold;"));
+    configLayout->addWidget(m_panelTitleLabel);
+
+    // Type Selector Radio Buttons
+    auto *typeLabel = new QLabel(tr("Тип авторизации:"), m_configPanel);
+    typeLabel->setStyleSheet(QStringLiteral("color: #94a3b8; font-size: 12px; font-weight: 600;"));
+    configLayout->addWidget(typeLabel);
+
+    auto *radiosLayout = new QHBoxLayout();
+    radiosLayout->setSpacing(10);
+
+    m_typeGroup = new QButtonGroup(this);
+
+    m_radioOffline = new QRadioButton(tr("👤 Без пароля"), m_configPanel);
+    m_radioOffline->setChecked(true);
+    m_radioElyBy = new QRadioButton(tr("🌐 Ely.by"), m_configPanel);
+    m_radioMicrosoft = new QRadioButton(tr("🎮 Microsoft"), m_configPanel);
+
+    const QString radioStyle = QStringLiteral(
+        "QRadioButton {"
+        "  color: #cbd5e1;"
+        "  font-size: 12px;"
+        "  font-weight: 600;"
+        "  spacing: 6px;"
+        "}"
+        "QRadioButton:hover {"
+        "  color: #38bdf8;"
+        "}"
+        "QRadioButton::indicator {"
+        "  width: 15px;"
+        "  height: 15px;"
+        "  border-radius: 7px;"
+        "  border: 1px solid rgba(255, 255, 255, 0.35);"
+        "  background-color: rgba(15, 17, 26, 0.8);"
+        "}"
+        "QRadioButton::indicator:checked {"
+        "  background-color: #10b981;"
+        "  border-color: #10b981;"
+        "}"
+    );
+
+    m_radioOffline->setStyleSheet(radioStyle);
+    m_radioElyBy->setStyleSheet(radioStyle);
+    m_radioMicrosoft->setStyleSheet(radioStyle);
+
+    m_typeGroup->addButton(m_radioOffline, 0);
+    m_typeGroup->addButton(m_radioElyBy, 1);
+    m_typeGroup->addButton(m_radioMicrosoft, 2);
+
+    radiosLayout->addWidget(m_radioOffline);
+    radiosLayout->addWidget(m_radioElyBy);
+    radiosLayout->addWidget(m_radioMicrosoft);
+    radiosLayout->addStretch(1);
+
+    connect(m_radioOffline, &QRadioButton::toggled, this, &AccountManagerDialog::onTypeRadioToggled);
+    connect(m_radioElyBy, &QRadioButton::toggled, this, &AccountManagerDialog::onTypeRadioToggled);
+    connect(m_radioMicrosoft, &QRadioButton::toggled, this, &AccountManagerDialog::onTypeRadioToggled);
+
+    configLayout->addLayout(radiosLayout);
+
+    // Form Pages Stack
+    m_typeStack = new QStackedWidget(m_configPanel);
+    m_typeStack->setStyleSheet(QStringLiteral("background: transparent;"));
+
+    const QString inputStyle = QStringLiteral(
         "QLineEdit {"
         "  background-color: rgba(15, 17, 26, 0.85);"
         "  border: 1px solid rgba(255, 255, 255, 0.15);"
-        "  border-radius: 6px;"
+        "  border-radius: 7px;"
         "  color: #f1f5f9;"
-        "  padding: 5px 10px;"
+        "  padding: 6px 12px;"
         "  font-size: 13px;"
         "}"
         "QLineEdit:focus {"
         "  border: 1px solid #10b981;"
         "}"
     );
-    connect(m_usernameInput, &QLineEdit::textChanged, this, &AccountManagerDialog::onNewUsernameChanged);
-    connect(m_usernameInput, &QLineEdit::returnPressed, this, &AccountManagerDialog::onConfirmAddAccount);
-    fieldsRow->addWidget(m_usernameInput, 1);
 
-    inputsLayout->addLayout(fieldsRow);
+    // 1. Page Offline
+    m_offlinePage = new QWidget();
+    auto *offlineLayout = new QVBoxLayout(m_offlinePage);
+    offlineLayout->setContentsMargins(0, 4, 0, 4);
+    offlineLayout->setSpacing(6);
 
-    m_validationHint = new QLabel(tr("Введите никнейм от 3 до 16 символов (только буквы A-Z, цифры и _)"), m_addFormFrame);
-    m_validationHint->setStyleSheet(QStringLiteral("color: #64748b; font-size: 11px;"));
-    inputsLayout->addWidget(m_validationHint);
+    auto *offNickLabel = new QLabel(tr("Имя пользователя / Никнейм:"), m_offlinePage);
+    offNickLabel->setStyleSheet(QStringLiteral("color: #94a3b8; font-size: 12px; font-weight: 600;"));
+    offlineLayout->addWidget(offNickLabel);
 
-    formRowLayout->addLayout(inputsLayout, 1);
+    m_offlineNickInput = new QLineEdit(m_offlinePage);
+    m_offlineNickInput->setPlaceholderText(tr("Введите никнейм (3-16 симв.)..."));
+    m_offlineNickInput->setClearButtonEnabled(true);
+    m_offlineNickInput->setStyleSheet(inputStyle);
+    auto *regexValidator = new QRegularExpressionValidator(QRegularExpression(QStringLiteral("^[a-zA-Z0-9_]{3,16}$")), this);
+    m_offlineNickInput->setValidator(regexValidator);
+    connect(m_offlineNickInput, &QLineEdit::textChanged, this, &AccountManagerDialog::onInputTextChanged);
+    connect(m_offlineNickInput, &QLineEdit::returnPressed, this, &AccountManagerDialog::onSaveAccountClicked);
+    offlineLayout->addWidget(m_offlineNickInput);
 
-    // Form buttons
-    auto *formButtonsLayout = new QVBoxLayout();
-    formButtonsLayout->setSpacing(6);
+    m_offlineHintLabel = new QLabel(tr("💡 Стандартный оффлайн режим. Не требует пароля. Скин подгружается по никнейму."), m_offlinePage);
+    m_offlineHintLabel->setWordWrap(true);
+    m_offlineHintLabel->setStyleSheet(QStringLiteral("color: #64748b; font-size: 11px;"));
+    offlineLayout->addWidget(m_offlineHintLabel);
+    offlineLayout->addStretch(1);
 
-    m_confirmAddBtn = new QPushButton(tr("✓ Добавить"), m_addFormFrame);
-    m_confirmAddBtn->setCursor(Qt::PointingHandCursor);
-    m_confirmAddBtn->setEnabled(false);
-    m_confirmAddBtn->setStyleSheet(
+    m_typeStack->addWidget(m_offlinePage);
+
+    // 2. Page Ely.by
+    m_elyPage = new QWidget();
+    auto *elyLayout = new QVBoxLayout(m_elyPage);
+    elyLayout->setContentsMargins(0, 4, 0, 4);
+    elyLayout->setSpacing(6);
+
+    auto *elyLoginLabel = new QLabel(tr("Электронная почта или логин Ely.by:"), m_elyPage);
+    elyLoginLabel->setStyleSheet(QStringLiteral("color: #94a3b8; font-size: 12px; font-weight: 600;"));
+    elyLayout->addWidget(elyLoginLabel);
+
+    m_elyLoginInput = new QLineEdit(m_elyPage);
+    m_elyLoginInput->setPlaceholderText(tr("user@example.com или логин..."));
+    m_elyLoginInput->setClearButtonEnabled(true);
+    m_elyLoginInput->setStyleSheet(inputStyle);
+    connect(m_elyLoginInput, &QLineEdit::textChanged, this, &AccountManagerDialog::onInputTextChanged);
+    connect(m_elyLoginInput, &QLineEdit::returnPressed, this, &AccountManagerDialog::onSaveAccountClicked);
+    elyLayout->addWidget(m_elyLoginInput);
+
+    auto *elyPassLabel = new QLabel(tr("Пароль учетной записи Ely.by:"), m_elyPage);
+    elyPassLabel->setStyleSheet(QStringLiteral("color: #94a3b8; font-size: 12px; font-weight: 600;"));
+    elyLayout->addWidget(elyPassLabel);
+
+    m_elyPasswordInput = new QLineEdit(m_elyPage);
+    m_elyPasswordInput->setEchoMode(QLineEdit::Password);
+    m_elyPasswordInput->setPlaceholderText(tr("Пароль аккаунта..."));
+    m_elyPasswordInput->setClearButtonEnabled(true);
+    m_elyPasswordInput->setStyleSheet(inputStyle);
+    connect(m_elyPasswordInput, &QLineEdit::returnPressed, this, &AccountManagerDialog::onSaveAccountClicked);
+    elyLayout->addWidget(m_elyPasswordInput);
+
+    m_elySkinsCheck = new QCheckBox(tr("Использовать систему скинов Ely.by"), m_elyPage);
+    m_elySkinsCheck->setChecked(true);
+    m_elySkinsCheck->setStyleSheet(
+        "QCheckBox {"
+        "  color: #38bdf8;"
+        "  font-size: 12px;"
+        "  font-weight: 600;"
+        "  spacing: 6px;"
+        "}"
+    );
+    elyLayout->addWidget(m_elySkinsCheck);
+
+    m_elyHintLabel = new QLabel(tr("💡 Авторизация через Ely.by позволяет отображать скины и плащи в мультиплеере."), m_elyPage);
+    m_elyHintLabel->setWordWrap(true);
+    m_elyHintLabel->setStyleSheet(QStringLiteral("color: #64748b; font-size: 11px;"));
+    elyLayout->addWidget(m_elyHintLabel);
+    elyLayout->addStretch(1);
+
+    m_typeStack->addWidget(m_elyPage);
+
+    // 3. Page Microsoft
+    m_msPage = new QWidget();
+    auto *msLayout = new QVBoxLayout(m_msPage);
+    msLayout->setContentsMargins(0, 4, 0, 4);
+    msLayout->setSpacing(6);
+
+    auto *msEmailLabel = new QLabel(tr("Электронная почта / Геймертег Microsoft:"), m_msPage);
+    msEmailLabel->setStyleSheet(QStringLiteral("color: #94a3b8; font-size: 12px; font-weight: 600;"));
+    msLayout->addWidget(msEmailLabel);
+
+    m_msEmailInput = new QLineEdit(m_msPage);
+    m_msEmailInput->setPlaceholderText(tr("user@outlook.com или геймертег..."));
+    m_msEmailInput->setClearButtonEnabled(true);
+    m_msEmailInput->setStyleSheet(inputStyle);
+    connect(m_msEmailInput, &QLineEdit::textChanged, this, &AccountManagerDialog::onInputTextChanged);
+    connect(m_msEmailInput, &QLineEdit::returnPressed, this, &AccountManagerDialog::onSaveAccountClicked);
+    msLayout->addWidget(m_msEmailInput);
+
+    m_msLoginBtn = new QPushButton(tr("🔑 Авторизоваться через браузер (Microsoft OAuth)"), m_msPage);
+    m_msLoginBtn->setCursor(Qt::PointingHandCursor);
+    m_msLoginBtn->setStyleSheet(
         "QPushButton {"
-        "  background-color: rgba(16, 185, 129, 0.25);"
-        "  border: 1px solid #10b981;"
-        "  border-radius: 6px;"
-        "  color: #34d399;"
+        "  background-color: rgba(37, 99, 235, 0.2);"
+        "  border: 1px solid #3b82f6;"
+        "  border-radius: 7px;"
+        "  color: #60a5fa;"
         "  font-weight: 600;"
         "  font-size: 12px;"
-        "  padding: 6px 14px;"
-        "}"
-        "QPushButton:hover:enabled {"
-        "  background-color: #10b981;"
-        "  color: #ffffff;"
-        "}"
-        "QPushButton:disabled {"
-        "  background-color: rgba(255, 255, 255, 0.05);"
-        "  border: 1px solid rgba(255, 255, 255, 0.1);"
-        "  color: #64748b;"
-        "}"
-    );
-    connect(m_confirmAddBtn, &QPushButton::clicked, this, &AccountManagerDialog::onConfirmAddAccount);
-    formButtonsLayout->addWidget(m_confirmAddBtn);
-
-    m_cancelAddBtn = new QPushButton(tr("✕ Отмена"), m_addFormFrame);
-    m_cancelAddBtn->setCursor(Qt::PointingHandCursor);
-    m_cancelAddBtn->setStyleSheet(
-        "QPushButton {"
-        "  background-color: rgba(255, 255, 255, 0.06);"
-        "  border: 1px solid rgba(255, 255, 255, 0.15);"
-        "  border-radius: 6px;"
-        "  color: #94a3b8;"
-        "  font-size: 12px;"
-        "  padding: 5px 14px;"
+        "  padding: 8px 14px;"
         "}"
         "QPushButton:hover {"
-        "  background-color: rgba(255, 255, 255, 0.15);"
+        "  background-color: #2563eb;"
         "  color: #ffffff;"
         "}"
     );
-    connect(m_cancelAddBtn, &QPushButton::clicked, this, &AccountManagerDialog::onCancelAddAccount);
-    formButtonsLayout->addWidget(m_cancelAddBtn);
+    connect(m_msLoginBtn, &QPushButton::clicked, this, &AccountManagerDialog::onMicrosoftLoginClicked);
+    msLayout->addWidget(m_msLoginBtn);
 
-    formRowLayout->addLayout(formButtonsLayout);
+    m_msStatusLabel = new QLabel(tr("Статус: Готов к авторизации"), m_msPage);
+    m_msStatusLabel->setStyleSheet(QStringLiteral("color: #10b981; font-size: 11px; font-weight: 600;"));
+    msLayout->addWidget(m_msStatusLabel);
 
-    formMainLayout->addLayout(formRowLayout);
-    mainLayout->addWidget(m_addFormFrame);
+    m_msHintLabel = new QLabel(tr("💡 Официальная лицензия Minecraft для доступа к лицензионным серверам."), m_msPage);
+    m_msHintLabel->setWordWrap(true);
+    m_msHintLabel->setStyleSheet(QStringLiteral("color: #64748b; font-size: 11px;"));
+    msLayout->addWidget(m_msHintLabel);
+    msLayout->addStretch(1);
 
-    // ==========================================
-    // 3. Scroll Area with Account Cards
-    // ==========================================
-    m_scrollArea = new QScrollArea(this);
-    m_scrollArea->setWidgetResizable(true);
-    m_scrollArea->setFrameShape(QFrame::NoFrame);
-    m_scrollArea->setStyleSheet(
-        "QScrollArea {"
-        "  background-color: rgba(15, 17, 25, 0.6);"
+    m_typeStack->addWidget(m_msPage);
+
+    configLayout->addWidget(m_typeStack, 1);
+
+    // Live Skin Preview Card
+    m_previewCard = new QFrame(m_configPanel);
+    m_previewCard->setStyleSheet(
+        "QFrame {"
+        "  background-color: rgba(15, 17, 26, 0.65);"
         "  border: 1px solid rgba(255, 255, 255, 0.08);"
-        "  border-radius: 12px;"
+        "  border-radius: 10px;"
+        "  padding: 8px;"
         "}"
     );
+    auto *previewCardLayout = new QHBoxLayout(m_previewCard);
+    previewCardLayout->setContentsMargins(8, 6, 8, 6);
+    previewCardLayout->setSpacing(12);
 
-    m_cardsContainer = new QWidget();
-    m_cardsContainer->setStyleSheet(QStringLiteral("background: transparent;"));
-    m_cardsLayout = new QVBoxLayout(m_cardsContainer);
-    m_cardsLayout->setContentsMargins(10, 10, 10, 10);
-    m_cardsLayout->setSpacing(8);
+    m_livePreview = new SkinPreviewWidget(m_previewCard);
+    m_livePreview->setFixedSize(48, 48);
+    previewCardLayout->addWidget(m_livePreview, 0, Qt::AlignVCenter);
 
-    m_emptyLabel = new QLabel(tr("Нет сохраненных аккаунтов.\nНажмите «➕ Добавить аккаунт», чтобы создать аккаунт."), m_cardsContainer);
-    m_emptyLabel->setAlignment(Qt::AlignCenter);
-    m_emptyLabel->setStyleSheet(QStringLiteral("color: #64748b; font-size: 13px; line-height: 1.5; padding: 40px;"));
-    m_cardsLayout->addWidget(m_emptyLabel);
+    auto *previewInfoLayout = new QVBoxLayout();
+    previewInfoLayout->setSpacing(2);
 
-    m_scrollArea->setWidget(m_cardsContainer);
-    mainLayout->addWidget(m_scrollArea, 1);
+    m_previewNickLabel = new QLabel(tr("Игрок: Player"), m_previewCard);
+    m_previewNickLabel->setStyleSheet(QStringLiteral("color: #ffffff; font-size: 13px; font-weight: bold;"));
+    previewInfoLayout->addWidget(m_previewNickLabel);
+
+    m_previewSubLabel = new QLabel(tr("Предпросмотр скина головы игрока"), m_previewCard);
+    m_previewSubLabel->setStyleSheet(QStringLiteral("color: #94a3b8; font-size: 11px;"));
+    previewInfoLayout->addWidget(m_previewSubLabel);
+
+    previewCardLayout->addLayout(previewInfoLayout, 1);
+    configLayout->addWidget(m_previewCard);
+
+    // Right Pane Action Buttons (Save & Cancel)
+    auto *configBtnLayout = new QHBoxLayout();
+    configBtnLayout->setSpacing(10);
+
+    m_saveBtn = new QPushButton(tr("💾 Сохранить аккаунт"), m_configPanel);
+    m_saveBtn->setCursor(Qt::PointingHandCursor);
+    m_saveBtn->setStyleSheet(
+        "QPushButton {"
+        "  background-color: #10b981;"
+        "  border: 1px solid #10b981;"
+        "  border-radius: 8px;"
+        "  color: #ffffff;"
+        "  font-weight: bold;"
+        "  font-size: 13px;"
+        "  padding: 8px 18px;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: #059669;"
+        "}"
+    );
+    connect(m_saveBtn, &QPushButton::clicked, this, &AccountManagerDialog::onSaveAccountClicked);
+    configBtnLayout->addWidget(m_saveBtn);
+
+    m_cancelBtn = new QPushButton(tr("✕ Отмена"), m_configPanel);
+    m_cancelBtn->setCursor(Qt::PointingHandCursor);
+    m_cancelBtn->setStyleSheet(
+        "QPushButton {"
+        "  background-color: rgba(255, 255, 255, 0.08);"
+        "  border: 1px solid rgba(255, 255, 255, 0.15);"
+        "  border-radius: 8px;"
+        "  color: #cbd5e1;"
+        "  font-size: 12px;"
+        "  padding: 8px 16px;"
+        "}"
+        "QPushButton:hover {"
+        "  background-color: rgba(255, 255, 255, 0.16);"
+        "  color: #ffffff;"
+        "}"
+    );
+    connect(m_cancelBtn, &QPushButton::clicked, this, &AccountManagerDialog::onCancelEditClicked);
+    configBtnLayout->addWidget(m_cancelBtn);
+
+    configLayout->addLayout(configBtnLayout);
+
+    panesLayout->addWidget(m_configPanel, 1);
+    mainLayout->addLayout(panesLayout, 1);
 
     // ==========================================
-    // 4. Bottom Actions Bar
+    // 3. Bottom Bar
     // ==========================================
     auto *bottomLayout = new QHBoxLayout();
+    bottomLayout->setSpacing(10);
 
-    auto *hintLabel = new QLabel(tr("💡 Выбранный активный аккаунт используется при запуске игры"), this);
-    hintLabel->setStyleSheet(QStringLiteral("color: #64748b; font-size: 11px;"));
-    bottomLayout->addWidget(hintLabel);
+    auto *bottomNote = new QLabel(tr("💡 Выбранный активный аккаунт используется при запуске Minecraft"), this);
+    bottomNote->setStyleSheet(QStringLiteral("color: #64748b; font-size: 11px;"));
+    bottomLayout->addWidget(bottomNote);
 
     bottomLayout->addStretch(1);
 
-    m_closeButton = new QPushButton(tr("Закрыть"), this);
-    m_closeButton->setCursor(Qt::PointingHandCursor);
-    m_closeButton->setStyleSheet(
+    m_closeBtn = new QPushButton(tr("Закрыть"), this);
+    m_closeBtn->setCursor(Qt::PointingHandCursor);
+    m_closeBtn->setStyleSheet(
         "QPushButton {"
         "  background-color: rgba(255, 255, 255, 0.08);"
         "  border: 1px solid rgba(255, 255, 255, 0.18);"
@@ -281,342 +540,359 @@ void AccountManagerDialog::setupUi()
         "  background-color: rgba(255, 255, 255, 0.18);"
         "}"
     );
-    connect(m_closeButton, &QPushButton::clicked, this, &QDialog::accept);
-    bottomLayout->addWidget(m_closeButton);
+    connect(m_closeBtn, &QPushButton::clicked, this, &QDialog::accept);
+    bottomLayout->addWidget(m_closeBtn);
 
     mainLayout->addLayout(bottomLayout);
 }
 
 void AccountManagerDialog::refreshAccounts()
 {
-    // Clear existing cards
-    QLayoutItem *child;
-    while ((child = m_cardsLayout->takeAt(0)) != nullptr) {
-        if (child->widget()) {
-            if (child->widget() != m_emptyLabel) {
-                child->widget()->deleteLater();
-            }
-        }
-        delete child;
-    }
+    m_accountsList->blockSignals(true);
+    m_accountsList->clear();
 
     const QList<Account> accounts = AccountManager::instance().accounts();
     const Account active = AccountManager::instance().activeAccount();
 
-    m_accountCountLabel->setText(tr("Всего: %1").arg(accounts.size()));
+    int activeRow = -1;
+    for (int i = 0; i < accounts.size(); ++i) {
+        const Account &acc = accounts[i];
+        auto *item = new QListWidgetItem();
+        QPixmap avatar = SkinManager::instance().getAvatar(acc.username, 32);
+        item->setIcon(QIcon(avatar));
 
-    if (accounts.isEmpty()) {
-        m_cardsLayout->addWidget(m_emptyLabel);
-        m_emptyLabel->show();
-        m_addFormFrame->show();
-        m_toggleAddButton->setText(tr("− Скрыть форму"));
-        m_usernameInput->setFocus();
-    } else {
-        m_emptyLabel->hide();
-        for (const Account &acc : accounts) {
-            bool isActive = (acc.id == active.id);
-            QWidget *card = createAccountCard(acc, isActive);
-            m_cardsLayout->addWidget(card);
+        QString typeBadge;
+        if (acc.type.compare(QStringLiteral("elyby"), Qt::CaseInsensitive) == 0) {
+            typeBadge = QStringLiteral("[Ely.by]");
+        } else if (acc.type.compare(QStringLiteral("microsoft"), Qt::CaseInsensitive) == 0) {
+            typeBadge = QStringLiteral("[MS]");
+        } else {
+            typeBadge = QStringLiteral("[Оффлайн]");
         }
-        m_cardsLayout->addStretch(1);
+
+        QString itemText = acc.username + QStringLiteral(" ") + typeBadge;
+        if (active.isValid() && acc.id == active.id) {
+            itemText += QStringLiteral("  ✓");
+            activeRow = i;
+        }
+
+        item->setText(itemText);
+        item->setData(Qt::UserRole, acc.id);
+        m_accountsList->addItem(item);
+    }
+
+    m_accountsList->blockSignals(false);
+
+    if (m_accountsList->count() > 0) {
+        int rowToSelect = activeRow >= 0 ? activeRow : 0;
+        m_accountsList->setCurrentRow(rowToSelect);
+    } else {
+        resetFormToNew();
     }
 }
 
-QWidget *AccountManagerDialog::createAccountCard(const Account &account, bool isActive)
+void AccountManagerDialog::onAccountListSelectionChanged()
 {
-    auto *card = new QFrame(m_cardsContainer);
-    card->setObjectName(QStringLiteral("AccountCard"));
-
-    if (isActive) {
-        card->setStyleSheet(
-            "QFrame#AccountCard {"
-            "  background-color: rgba(16, 185, 129, 0.12);"
-            "  border: 1.5px solid #10b981;"
-            "  border-radius: 12px;"
-            "}"
-        );
-    } else {
-        card->setStyleSheet(
-            "QFrame#AccountCard {"
-            "  background-color: rgba(255, 255, 255, 0.04);"
-            "  border: 1px solid rgba(255, 255, 255, 0.1);"
-            "  border-radius: 12px;"
-            "}"
-            "QFrame#AccountCard:hover {"
-            "  background-color: rgba(255, 255, 255, 0.07);"
-            "  border: 1px solid rgba(255, 255, 255, 0.18);"
-            "}"
-        );
-    }
-
-    auto *cardLayout = new QHBoxLayout(card);
-    cardLayout->setContentsMargins(12, 10, 12, 10);
-    cardLayout->setSpacing(12);
-
-    // 1. Avatar (48x48)
-    auto *avatar = new SkinPreviewWidget(card);
-    avatar->setUsername(account.username);
-    cardLayout->addWidget(avatar, 0, Qt::AlignVCenter);
-
-    // 2. Info Column
-    auto *infoLayout = new QVBoxLayout();
-    infoLayout->setSpacing(4);
-
-    auto *nameLabel = new QLabel(account.username, card);
-    if (isActive) {
-        nameLabel->setStyleSheet(QStringLiteral("color: #ffffff; font-size: 14px; font-weight: bold;"));
-    } else {
-        nameLabel->setStyleSheet(QStringLiteral("color: #f1f5f9; font-size: 14px; font-weight: 600;"));
-    }
-    infoLayout->addWidget(nameLabel);
-
-    auto *badgesLayout = new QHBoxLayout();
-    badgesLayout->setSpacing(6);
-
-    // Type Badge ([Оффлайн], [Ely.by], [Microsoft])
-    auto *typeBadge = new QLabel(card);
-    if (account.type.compare(QStringLiteral("elyby"), Qt::CaseInsensitive) == 0) {
-        typeBadge->setText(tr("[Ely.by]"));
-        typeBadge->setStyleSheet(
-            "QLabel {"
-            "  background-color: rgba(14, 165, 233, 0.18);"
-            "  color: #38bdf8;"
-            "  border: 1px solid rgba(14, 165, 233, 0.45);"
-            "  border-radius: 4px;"
-            "  padding: 2px 7px;"
-            "  font-size: 11px;"
-            "  font-weight: bold;"
-            "}"
-        );
-    } else if (account.type.compare(QStringLiteral("microsoft"), Qt::CaseInsensitive) == 0) {
-        typeBadge->setText(tr("[Microsoft]"));
-        typeBadge->setStyleSheet(
-            "QLabel {"
-            "  background-color: rgba(34, 197, 94, 0.18);"
-            "  color: #4ade80;"
-            "  border: 1px solid rgba(34, 197, 94, 0.45);"
-            "  border-radius: 4px;"
-            "  padding: 2px 7px;"
-            "  font-size: 11px;"
-            "  font-weight: bold;"
-            "}"
-        );
-    } else {
-        typeBadge->setText(tr("[Оффлайн]"));
-        typeBadge->setStyleSheet(
-            "QLabel {"
-            "  background-color: rgba(148, 163, 184, 0.15);"
-            "  color: #cbd5e1;"
-            "  border: 1px solid rgba(148, 163, 184, 0.35);"
-            "  border-radius: 4px;"
-            "  padding: 2px 7px;"
-            "  font-size: 11px;"
-            "  font-weight: bold;"
-            "}"
-        );
-    }
-    badgesLayout->addWidget(typeBadge);
-
-    // Active Checkmark Badge
-    if (isActive) {
-        auto *activeBadge = new QLabel(tr("✓ Активен"), card);
-        activeBadge->setStyleSheet(
-            "QLabel {"
-            "  background-color: rgba(16, 185, 129, 0.22);"
-            "  color: #10b981;"
-            "  border: 1px solid #10b981;"
-            "  border-radius: 4px;"
-            "  padding: 2px 8px;"
-            "  font-size: 11px;"
-            "  font-weight: bold;"
-            "}"
-        );
-        badgesLayout->addWidget(activeBadge);
-    }
-
-    badgesLayout->addStretch(1);
-    infoLayout->addLayout(badgesLayout);
-
-    cardLayout->addLayout(infoLayout, 1);
-
-    // 3. Actions Column
-    auto *btnLayout = new QHBoxLayout();
-    btnLayout->setSpacing(8);
-
-    if (isActive) {
-        auto *activeBtn = new QPushButton(tr("✓ Выбран"), card);
-        activeBtn->setEnabled(false);
-        activeBtn->setStyleSheet(
-            "QPushButton {"
-            "  background-color: rgba(16, 185, 129, 0.15);"
-            "  border: 1px solid #10b981;"
-            "  border-radius: 8px;"
-            "  color: #10b981;"
-            "  font-weight: 600;"
-            "  font-size: 12px;"
-            "  padding: 6px 14px;"
-            "}"
-        );
-        btnLayout->addWidget(activeBtn);
-    } else {
-        auto *selectBtn = new QPushButton(tr("Выбрать"), card);
-        selectBtn->setCursor(Qt::PointingHandCursor);
-        selectBtn->setStyleSheet(
-            "QPushButton {"
-            "  background-color: rgba(59, 130, 246, 0.18);"
-            "  border: 1px solid #3b82f6;"
-            "  border-radius: 8px;"
-            "  color: #60a5fa;"
-            "  font-weight: 600;"
-            "  font-size: 12px;"
-            "  padding: 6px 14px;"
-            "}"
-            "QPushButton:hover {"
-            "  background-color: rgba(59, 130, 246, 0.35);"
-            "  color: #ffffff;"
-            "}"
-        );
-        QString accId = account.id;
-        connect(selectBtn, &QPushButton::clicked, this, [this, accId]() {
-            onSelectAccount(accId);
-        });
-        btnLayout->addWidget(selectBtn);
-    }
-
-    auto *deleteBtn = new QPushButton(tr("Удалить"), card);
-    deleteBtn->setCursor(Qt::PointingHandCursor);
-    deleteBtn->setStyleSheet(
-        "QPushButton {"
-        "  background-color: rgba(239, 68, 68, 0.12);"
-        "  border: 1px solid rgba(239, 68, 68, 0.35);"
-        "  border-radius: 8px;"
-        "  color: #f87171;"
-        "  font-weight: 600;"
-        "  font-size: 12px;"
-        "  padding: 6px 12px;"
-        "}"
-        "QPushButton:hover {"
-        "  background-color: rgba(239, 68, 68, 0.35);"
-        "  color: #ffffff;"
-        "}"
-    );
-    QString accId = account.id;
-    QString accName = account.username;
-    connect(deleteBtn, &QPushButton::clicked, this, [this, accId, accName]() {
-        onDeleteAccount(accId, accName);
-    });
-    btnLayout->addWidget(deleteBtn);
-
-    cardLayout->addLayout(btnLayout);
-
-    return card;
-}
-
-void AccountManagerDialog::onToggleAddForm()
-{
-    bool visible = m_addFormFrame->isVisible();
-    m_addFormFrame->setVisible(!visible);
-    m_toggleAddButton->setText(!visible ? tr("− Скрыть форму") : tr("➕ Добавить аккаунт"));
-    if (!visible) {
-        m_usernameInput->setFocus();
-    }
-}
-
-void AccountManagerDialog::onCancelAddAccount()
-{
-    m_usernameInput->clear();
-    m_addFormFrame->hide();
-    m_toggleAddButton->setText(tr("➕ Добавить аккаунт"));
-}
-
-void AccountManagerDialog::onConfirmAddAccount()
-{
-    QString username = m_usernameInput->text().trimmed();
-    static const QRegularExpression regex(QStringLiteral("^[a-zA-Z0-9_]{3,16}$"));
-    if (!regex.match(username).hasMatch()) {
-        QMessageBox::warning(this, tr("Некорректный никнейм"),
-                             tr("Никнейм должен содержать от 3 до 16 символов (буквы A-Z, цифры 0-9 и знак подчеркивания)."));
+    QListWidgetItem *cur = m_accountsList->currentItem();
+    if (!cur) {
+        m_deleteBtn->setEnabled(false);
+        m_makeActiveBtn->setEnabled(false);
         return;
     }
 
-    Account existing = AccountManager::instance().getAccountByUsername(username);
-    if (existing.isValid()) {
-        QMessageBox::information(this, tr("Аккаунт уже добавлен"),
-                                 tr("Аккаунт с именем \"%1\" уже существует в списке.").arg(username));
-        AccountManager::instance().setActiveAccount(existing.id);
-        m_usernameInput->clear();
-        m_addFormFrame->hide();
-        m_toggleAddButton->setText(tr("➕ Добавить аккаунт"));
-        refreshAccounts();
-        return;
-    }
+    QString accId = cur->data(Qt::UserRole).toString();
+    Account acc = AccountManager::instance().getAccount(accId);
+    if (!acc.isValid()) return;
 
-    QString type = m_typeCombo->currentData().toString();
-    if (type.isEmpty()) {
-        type = QStringLiteral("offline");
-    }
+    m_selectedAccountId = acc.id;
+    m_isCreatingNew = false;
+    populateAccountDetails(acc);
 
-    Account newAcc(username, type);
-    AccountManager::instance().addAccount(newAcc);
-    AccountManager::instance().setActiveAccount(newAcc.id);
-
-    // Sync to Settings for backward compatibility
-    Settings::instance().addNickname(username);
-    Settings::instance().setLastNickname(username);
-    Settings::instance().save();
-
-    m_usernameInput->clear();
-    m_addFormFrame->hide();
-    m_toggleAddButton->setText(tr("➕ Добавить аккаунт"));
-    refreshAccounts();
+    Account active = AccountManager::instance().activeAccount();
+    bool isActive = (active.isValid() && active.id == acc.id);
+    m_makeActiveBtn->setEnabled(!isActive);
+    m_makeActiveBtn->setText(isActive ? tr("✓ Уже активен") : tr("✓ Сделать активным"));
+    m_deleteBtn->setEnabled(true);
 }
 
-void AccountManagerDialog::onSelectAccount(const QString &accountId)
+void AccountManagerDialog::populateAccountDetails(const Account &acc)
 {
-    Account acc = AccountManager::instance().getAccount(accountId);
-    AccountManager::instance().setActiveAccount(accountId);
-    if (acc.isValid()) {
-        Settings::instance().setLastNickname(acc.username);
-        Settings::instance().save();
+    m_panelTitleLabel->setText(tr("⚙ Настройка аккаунта: %1").arg(acc.username));
+
+    m_typeGroup->blockSignals(true);
+    if (acc.type.compare(QStringLiteral("elyby"), Qt::CaseInsensitive) == 0) {
+        m_radioElyBy->setChecked(true);
+        m_typeStack->setCurrentIndex(1);
+        m_elyLoginInput->setText(acc.email.isEmpty() ? acc.username : acc.email);
+        m_elyPasswordInput->setText(acc.password);
+        m_elySkinsCheck->setChecked(acc.useElySkins);
+    } else if (acc.type.compare(QStringLiteral("microsoft"), Qt::CaseInsensitive) == 0) {
+        m_radioMicrosoft->setChecked(true);
+        m_typeStack->setCurrentIndex(2);
+        m_msEmailInput->setText(acc.email.isEmpty() ? acc.username : acc.email);
+    } else {
+        m_radioOffline->setChecked(true);
+        m_typeStack->setCurrentIndex(0);
+        m_offlineNickInput->setText(acc.username);
     }
-    refreshAccounts();
+    m_typeGroup->blockSignals(false);
+
+    updateLiveSkinPreview();
 }
 
-void AccountManagerDialog::onDeleteAccount(const QString &accountId, const QString &username)
+void AccountManagerDialog::resetFormToNew()
 {
+    m_selectedAccountId.clear();
+    m_isCreatingNew = true;
+    m_panelTitleLabel->setText(tr("➕ Создание нового аккаунта"));
+
+    m_typeGroup->blockSignals(true);
+    m_radioOffline->setChecked(true);
+    m_typeStack->setCurrentIndex(0);
+    m_typeGroup->blockSignals(false);
+
+    m_offlineNickInput->clear();
+    m_elyLoginInput->clear();
+    m_elyPasswordInput->clear();
+    m_elySkinsCheck->setChecked(true);
+    m_msEmailInput->clear();
+
+    m_makeActiveBtn->setEnabled(false);
+    m_makeActiveBtn->setText(tr("✓ Сделать активным"));
+    m_deleteBtn->setEnabled(false);
+
+    updateLiveSkinPreview();
+    m_offlineNickInput->setFocus();
+}
+
+void AccountManagerDialog::onAddNewAccountClicked()
+{
+    m_accountsList->blockSignals(true);
+    m_accountsList->clearSelection();
+    m_accountsList->blockSignals(false);
+
+    resetFormToNew();
+}
+
+void AccountManagerDialog::onDeleteAccountClicked()
+{
+    if (m_selectedAccountId.isEmpty()) return;
+
+    Account acc = AccountManager::instance().getAccount(m_selectedAccountId);
+    if (!acc.isValid()) return;
+
     auto reply = QMessageBox::question(
         this,
         tr("Удаление аккаунта"),
-        tr("Вы действительно хотите удалить аккаунт \"%1\"?").arg(username),
+        tr("Вы действительно хотите удалить аккаунт \"%1\"?").arg(acc.username),
         QMessageBox::Yes | QMessageBox::No,
         QMessageBox::No
     );
 
     if (reply == QMessageBox::Yes) {
-        AccountManager::instance().removeAccount(accountId);
-        Settings::instance().removeNickname(username);
-        Settings::instance().save();
+        AccountManager::instance().removeAccount(m_selectedAccountId);
+        AccountManager::instance().save();
+        m_selectedAccountId.clear();
         refreshAccounts();
     }
 }
 
-void AccountManagerDialog::onNewUsernameChanged(const QString &text)
+void AccountManagerDialog::onMakeActiveClicked()
 {
-    QString nick = text.trimmed();
-    m_livePreview->setUsername(nick);
+    if (m_selectedAccountId.isEmpty()) return;
 
-    static const QRegularExpression regex(QStringLiteral("^[a-zA-Z0-9_]{3,16}$"));
-    bool valid = regex.match(nick).hasMatch();
-    m_confirmAddBtn->setEnabled(valid);
+    AccountManager::instance().setActiveAccount(m_selectedAccountId);
+    AccountManager::instance().save();
+    refreshAccounts();
+}
 
-    if (nick.isEmpty()) {
-        m_validationHint->setText(tr("Введите никнейм от 3 до 16 символов (только буквы A-Z, цифры и _)"));
-        m_validationHint->setStyleSheet(QStringLiteral("color: #64748b; font-size: 11px;"));
-    } else if (valid) {
-        m_validationHint->setText(tr("✓ Корректный никнейм"));
-        m_validationHint->setStyleSheet(QStringLiteral("color: #34d399; font-size: 11px; font-weight: bold;"));
+void AccountManagerDialog::onTypeRadioToggled()
+{
+    if (m_radioOffline->isChecked()) {
+        m_typeStack->setCurrentIndex(0);
+    } else if (m_radioElyBy->isChecked()) {
+        m_typeStack->setCurrentIndex(1);
+    } else if (m_radioMicrosoft->isChecked()) {
+        m_typeStack->setCurrentIndex(2);
+    }
+    updateLiveSkinPreview();
+}
+
+void AccountManagerDialog::onInputTextChanged()
+{
+    updateLiveSkinPreview();
+}
+
+void AccountManagerDialog::onMicrosoftLoginClicked()
+{
+    m_msStatusLabel->setText(tr("Статус: Открытие страницы авторизации Microsoft..."));
+    QDesktopServices::openUrl(QUrl(QStringLiteral("https://login.live.com/oauth20_authorize.srf?client_id=00000000402b5328&response_type=code&scope=service::user.auth.xboxlive.com::MBI_SSL&redirect_uri=https://login.live.com/oauth20_desktop.srf")));
+    QMessageBox::information(this, tr("Авторизация Microsoft"),
+                             tr("Браузер открыт для авторизации Microsoft.\nВведите ваш логин или email в поле выше и нажмите «Сохранить аккаунт»."));
+    m_msStatusLabel->setText(tr("Статус: Готов к сохранению"));
+}
+
+QString AccountManagerDialog::getEffectiveUsernameFromInputs() const
+{
+    if (m_radioElyBy->isChecked()) {
+        QString val = m_elyLoginInput->text().trimmed();
+        if (val.contains(QLatin1Char('@'))) {
+            val = val.split(QLatin1Char('@')).first().trimmed();
+        }
+        return val.isEmpty() ? QStringLiteral("ElyUser") : val;
+    } else if (m_radioMicrosoft->isChecked()) {
+        QString val = m_msEmailInput->text().trimmed();
+        if (val.contains(QLatin1Char('@'))) {
+            val = val.split(QLatin1Char('@')).first().trimmed();
+        }
+        return val.isEmpty() ? QStringLiteral("Player") : val;
     } else {
-        m_validationHint->setText(tr("✕ От 3 до 16 символов, только английские буквы, цифры и _"));
-        m_validationHint->setStyleSheet(QStringLiteral("color: #f87171; font-size: 11px;"));
+        QString val = m_offlineNickInput->text().trimmed();
+        return val.isEmpty() ? QStringLiteral("Steve") : val;
+    }
+}
+
+void AccountManagerDialog::updateLiveSkinPreview()
+{
+    QString name = getEffectiveUsernameFromInputs();
+    m_livePreview->setUsername(name);
+    m_previewNickLabel->setText(tr("Игрок: %1").arg(name));
+}
+
+void AccountManagerDialog::onCancelEditClicked()
+{
+    if (!m_selectedAccountId.isEmpty()) {
+        Account acc = AccountManager::instance().getAccount(m_selectedAccountId);
+        if (acc.isValid()) {
+            populateAccountDetails(acc);
+            return;
+        }
+    }
+    refreshAccounts();
+}
+
+void AccountManagerDialog::onSaveAccountClicked()
+{
+    QString targetId;
+
+    if (m_radioOffline->isChecked()) {
+        QString nick = m_offlineNickInput->text().trimmed();
+        if (nick.length() < 3 || !Utils::isValidNickname(nick)) {
+            QMessageBox::warning(this, tr("Некорректный никнейм"),
+                                 tr("Никнейм должен содержать от 3 до 16 символов (только латинские буквы, цифры и _)."));
+            m_offlineNickInput->setFocus();
+            return;
+        }
+
+        if (!m_isCreatingNew && !m_selectedAccountId.isEmpty()) {
+            Account acc = AccountManager::instance().getAccount(m_selectedAccountId);
+            acc.username = nick;
+            acc.type = QStringLiteral("offline");
+            acc.email.clear();
+            acc.password.clear();
+            acc.uuid = Utils::generateOfflinePlayerUuid(nick);
+            AccountManager::instance().updateAccount(acc);
+            targetId = acc.id;
+        } else {
+            Account acc(nick, QStringLiteral("offline"));
+            AccountManager::instance().addAccount(acc);
+            targetId = acc.id;
+        }
+        Settings::instance().addNickname(nick);
+    } else if (m_radioElyBy->isChecked()) {
+        QString login = m_elyLoginInput->text().trimmed();
+        if (login.isEmpty()) {
+            QMessageBox::warning(this, tr("Внимание"), tr("Введите логин или адрес электронной почты аккаунта Ely.by."));
+            m_elyLoginInput->setFocus();
+            return;
+        }
+
+        QString username = login;
+        if (login.contains(QLatin1Char('@'))) {
+            username = login.split(QLatin1Char('@')).first().trimmed();
+        }
+        if (!Utils::isValidNickname(username)) {
+            username = Utils::sanitizeNickname(username);
+            if (username.length() < 3) {
+                username = QStringLiteral("Player_") + QString::number(QDateTime::currentMSecsSinceEpoch() % 10000);
+            }
+        }
+
+        QString password = m_elyPasswordInput->text();
+        bool useSkins = m_elySkinsCheck->isChecked();
+
+        if (!m_isCreatingNew && !m_selectedAccountId.isEmpty()) {
+            Account acc = AccountManager::instance().getAccount(m_selectedAccountId);
+            acc.username = username;
+            acc.type = QStringLiteral("elyby");
+            acc.email = login;
+            acc.password = password;
+            acc.useElySkins = useSkins;
+            AccountManager::instance().updateAccount(acc);
+            targetId = acc.id;
+        } else {
+            Account acc(username, QStringLiteral("elyby"));
+            acc.email = login;
+            acc.password = password;
+            acc.useElySkins = useSkins;
+            AccountManager::instance().addAccount(acc);
+            targetId = acc.id;
+        }
+        Settings::instance().addNickname(username);
+    } else { // Microsoft
+        QString email = m_msEmailInput->text().trimmed();
+        if (email.isEmpty()) {
+            QMessageBox::warning(this, tr("Внимание"), tr("Введите адрес электронной почты или геймертег Microsoft."));
+            m_msEmailInput->setFocus();
+            return;
+        }
+
+        QString username = email;
+        if (email.contains(QLatin1Char('@'))) {
+            username = email.split(QLatin1Char('@')).first().trimmed();
+        }
+        if (!Utils::isValidNickname(username)) {
+            username = Utils::sanitizeNickname(username);
+            if (username.length() < 3) {
+                username = QStringLiteral("Player_") + QString::number(QDateTime::currentMSecsSinceEpoch() % 10000);
+            }
+        }
+
+        if (!m_isCreatingNew && !m_selectedAccountId.isEmpty()) {
+            Account acc = AccountManager::instance().getAccount(m_selectedAccountId);
+            acc.username = username;
+            acc.type = QStringLiteral("microsoft");
+            acc.email = email;
+            AccountManager::instance().updateAccount(acc);
+            targetId = acc.id;
+        } else {
+            Account acc(username, QStringLiteral("microsoft"));
+            acc.email = email;
+            AccountManager::instance().addAccount(acc);
+            targetId = acc.id;
+        }
+        Settings::instance().addNickname(username);
+    }
+
+    AccountManager::instance().save();
+    Settings::instance().save();
+
+    // If only one account or active is empty, set active
+    if (!targetId.isEmpty()) {
+        Account active = AccountManager::instance().activeAccount();
+        if (!active.isValid() || AccountManager::instance().accounts().size() == 1) {
+            AccountManager::instance().setActiveAccount(targetId);
+            AccountManager::instance().save();
+        }
+    }
+
+    refreshAccounts();
+
+    // Select the saved item
+    for (int i = 0; i < m_accountsList->count(); ++i) {
+        if (m_accountsList->item(i)->data(Qt::UserRole).toString() == targetId) {
+            m_accountsList->setCurrentRow(i);
+            break;
+        }
     }
 }

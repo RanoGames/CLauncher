@@ -359,6 +359,7 @@ QPushButton#CancelInstallButton:pressed {
 }
 
 /* Quick Action Pills */
+QPushButton[class="actionPill"],
 QPushButton.actionPill {
     background-color: rgba(255, 255, 255, 0.07);
     border: 1px solid rgba(255, 255, 255, 0.12);
@@ -368,17 +369,20 @@ QPushButton.actionPill {
     font-weight: 600;
 }
 
+QPushButton[class="actionPill"]:hover,
 QPushButton.actionPill:hover {
     background-color: rgba(255, 255, 255, 0.13);
     border-color: rgba(255, 255, 255, 0.24);
     color: #ffffff;
 }
 
+QPushButton[class="actionPill"]:pressed,
 QPushButton.actionPill:pressed {
     background-color: rgba(255, 255, 255, 0.2);
 }
 
 /* Mini Buttons */
+QPushButton[class="miniBtn"],
 QPushButton.miniBtn {
     background-color: rgba(255, 255, 255, 0.07);
     border: 1px solid rgba(255, 255, 255, 0.13);
@@ -388,12 +392,14 @@ QPushButton.miniBtn {
     font-weight: bold;
 }
 
+QPushButton[class="miniBtn"]:hover,
 QPushButton.miniBtn:hover {
     background-color: rgba(255, 255, 255, 0.14);
     border-color: rgba(255, 255, 255, 0.26);
     color: #ffffff;
 }
 
+QPushButton[class="miniBtn"]:pressed,
 QPushButton.miniBtn:pressed {
     background-color: rgba(255, 255, 255, 0.22);
 }

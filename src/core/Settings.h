@@ -33,6 +33,7 @@ public:
     int resolutionHeight() const;
     QString customBackground() const;
     bool elyBySkins() const;
+    bool accountsEnabled() const;
     QString uiTheme() const;
     bool autoCheckUpdates() const;
     QString gameDir() const;
@@ -57,6 +58,7 @@ public:
     void setResolution(int width, int height);
     void setCustomBackground(const QString &path);
     void setElyBySkins(bool enabled);
+    void setAccountsEnabled(bool enabled);
     void setUiTheme(const QString &theme);
     void setAutoCheckUpdates(bool check);
     void setGameDir(const QString &dir);
@@ -100,6 +102,7 @@ private:
     int m_resolutionHeight = 720;
     QString m_customBackground;
     bool m_elyBySkins = true;
+    bool m_accountsEnabled = true;
     QString m_uiTheme;
     bool m_autoCheckUpdates = true;
     QString m_gameDir;

@@ -7,6 +7,7 @@
 #include "../core/CrashAnalyzer.h"
 #include "../mc/JavaManager.h"
 #include "../mc/DiscordRpc.h"
+#include "../mc/SkinManager.h"
 #include "../core/AccountManager.h"
 #include "../core/Account.h"
 #include "AccountManagerDialog.h"
@@ -29,6 +30,9 @@ MainWindow::MainWindow(QWidget *parent)
     setupUi();
     setupConnections();
     loadBackground();
+    if (m_accountsCheck) {
+        m_accountsCheck->setChecked(Settings::instance().accountsEnabled());
+    }
     populateNicknames();
     loadVersions(false);
     updateActionButtonState();
@@ -120,9 +124,36 @@ void MainWindow::setupUi()
     );
 
     // Dock Top Row: Nickname & Avatar
-    m_nicknameTitleLabel = new QLabel(tr("👤 ИМЯ ИГРОКА"), m_dockCard);
-    m_nicknameTitleLabel->setGeometry(16, 10, 220, 18);
+    m_nicknameTitleLabel = new QLabel(tr("👤 АККАУНТ"), m_dockCard);
+    m_nicknameTitleLabel->setGeometry(16, 9, 98, 18);
     m_nicknameTitleLabel->setStyleSheet(QStringLiteral("color: #8e8e93; font-size: 11px; font-weight: bold; letter-spacing: 0.5px;"));
+
+    m_accountsCheck = new QCheckBox(tr("Аккаунты"), m_dockCard);
+    m_accountsCheck->setGeometry(120, 8, 124, 20);
+    m_accountsCheck->setToolTip(tr("Включить менеджер аккаунтов (как в TLauncher)"));
+    m_accountsCheck->setCursor(Qt::PointingHandCursor);
+    m_accountsCheck->setStyleSheet(
+        "QCheckBox {"
+        "  color: #94a3b8;"
+        "  font-size: 11px;"
+        "  font-weight: 600;"
+        "  spacing: 5px;"
+        "}"
+        "QCheckBox:hover {"
+        "  color: #38bdf8;"
+        "}"
+        "QCheckBox::indicator {"
+        "  width: 13px;"
+        "  height: 13px;"
+        "  border-radius: 3px;"
+        "  border: 1px solid rgba(255, 255, 255, 0.35);"
+        "  background-color: rgba(20, 24, 36, 0.8);"
+        "}"
+        "QCheckBox::indicator:checked {"
+        "  background-color: #10b981;"
+        "  border-color: #10b981;"
+        "}"
+    );
 
     m_skinPreview = new SkinPreviewWidget(m_dockCard);
     m_skinPreview->setGeometry(16, 32, 48, 48);
@@ -254,7 +285,8 @@ void MainWindow::setupConnections()
     connect(m_deleteVersionButton, &QPushButton::clicked, this, &MainWindow::onDeleteVersionClicked);
     connect(m_gitHubButton, &QPushButton::clicked, this, &MainWindow::onOpenGitHubClicked);
 
-    // Combos
+    // Combos & Checkboxes
+    connect(m_accountsCheck, &QCheckBox::toggled, this, &MainWindow::onAccountsToggled);
     connect(m_versionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &MainWindow::onVersionIndexChanged);
 
@@ -266,6 +298,19 @@ void MainWindow::setupConnections()
     connect(m_nicknameCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &MainWindow::onNicknameIndexChanged);
 
+    // SkinManager avatar loaded listener
+    connect(&SkinManager::instance(), &SkinManager::avatarLoaded, this, [this](const QString &username, const QPixmap &avatar) {
+        if (m_accountsCheck && m_accountsCheck->isChecked()) {
+            for (int i = 0; i < m_nicknameCombo->count(); ++i) {
+                QString accId = m_nicknameCombo->itemData(i).toString();
+                Account a = AccountManager::instance().getAccount(accId);
+                if (a.isValid() && a.username.compare(username, Qt::CaseInsensitive) == 0) {
+                    m_nicknameCombo->setItemIcon(i, QIcon(avatar.scaled(24, 24, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+                }
+            }
+        }
+    });
+
     // AccountManager synchronization
     connect(&AccountManager::instance(), &AccountManager::accountAdded,
             this, &MainWindow::populateNicknames);
@@ -274,9 +319,11 @@ void MainWindow::setupConnections()
     connect(&AccountManager::instance(), &AccountManager::activeAccountChanged,
             this, [this](const Account &account) {
         m_nicknameCombo->blockSignals(true);
-        int idx = m_nicknameCombo->findData(account.id);
-        if (idx >= 0) {
-            m_nicknameCombo->setCurrentIndex(idx);
+        if (m_accountsCheck && m_accountsCheck->isChecked()) {
+            int idx = m_nicknameCombo->findData(account.id);
+            if (idx >= 0) {
+                m_nicknameCombo->setCurrentIndex(idx);
+            }
         } else {
             m_nicknameCombo->setEditText(account.username);
         }
@@ -346,20 +393,79 @@ void MainWindow::populateNicknames()
     m_nicknameCombo->blockSignals(true);
     m_nicknameCombo->clear();
 
-    const QList<Account> accounts = AccountManager::instance().accounts();
-    for (const Account &acc : accounts) {
-        m_nicknameCombo->addItem(acc.username, acc.id);
-    }
+    const bool useAccounts = (m_accountsCheck && m_accountsCheck->isChecked());
 
-    const Account active = AccountManager::instance().activeAccount();
-    if (active.isValid()) {
-        int idx = m_nicknameCombo->findData(active.id);
-        if (idx >= 0) {
-            m_nicknameCombo->setCurrentIndex(idx);
+    if (useAccounts) {
+        m_nicknameCombo->setEditable(false);
+        m_nicknameCombo->setGeometry(68, 34, 178, 44);
+        if (m_deleteNickButton) {
+            m_deleteNickButton->hide();
+        }
+
+        const QList<Account> accounts = AccountManager::instance().accounts();
+        const Account active = AccountManager::instance().activeAccount();
+        int activeIdx = -1;
+
+        for (int i = 0; i < accounts.size(); ++i) {
+            const Account &acc = accounts[i];
+            QPixmap pix = SkinManager::instance().getAvatar(acc.username, 24);
+            QIcon icon(pix);
+            QString label = acc.username;
+            if (acc.type.compare(QStringLiteral("elyby"), Qt::CaseInsensitive) == 0) {
+                label += QStringLiteral(" [Ely.by]");
+            } else if (acc.type.compare(QStringLiteral("microsoft"), Qt::CaseInsensitive) == 0) {
+                label += QStringLiteral(" [MS]");
+            } else {
+                label += QStringLiteral(" [Оффлайн]");
+            }
+            m_nicknameCombo->addItem(icon, label, acc.id);
+            if (active.isValid() && acc.id == active.id) {
+                activeIdx = i;
+            }
+        }
+
+        // Special last item: ⚙ Настроить аккаунты...
+        m_nicknameCombo->addItem(QIcon(QStringLiteral(":/mclovin.ico")),
+                                 tr("⚙ Настроить аккаунты..."),
+                                 QStringLiteral("__manage_accounts__"));
+
+        if (activeIdx >= 0) {
+            m_nicknameCombo->setCurrentIndex(activeIdx);
+            if (m_skinPreview) {
+                m_skinPreview->setUsername(accounts[activeIdx].username);
+            }
+        } else if (!accounts.isEmpty()) {
+            m_nicknameCombo->setCurrentIndex(0);
+            AccountManager::instance().setActiveAccount(accounts.first().id);
+            if (m_skinPreview) {
+                m_skinPreview->setUsername(accounts.first().username);
+            }
         } else {
-            m_nicknameCombo->setEditText(active.username);
+            // No accounts: select special item
+            m_nicknameCombo->setCurrentIndex(0);
+            if (m_skinPreview) {
+                m_skinPreview->setUsername(QString());
+            }
         }
     } else {
+        m_nicknameCombo->setEditable(true);
+        m_nicknameCombo->setGeometry(68, 34, 146, 44);
+        if (m_deleteNickButton) {
+            m_deleteNickButton->show();
+        }
+
+        auto *nickValidator = new QRegularExpressionValidator(QRegularExpression(QStringLiteral("^[a-zA-Z0-9_]{3,16}$")), this);
+        if (m_nicknameCombo->lineEdit()) {
+            m_nicknameCombo->lineEdit()->setValidator(nickValidator);
+        }
+
+        const QStringList nicks = Settings::instance().nicknames();
+        for (const QString &n : nicks) {
+            if (!n.isEmpty()) {
+                m_nicknameCombo->addItem(n);
+            }
+        }
+
         const QString last = Settings::instance().lastNickname();
         if (!last.isEmpty()) {
             int idx = m_nicknameCombo->findText(last);
@@ -371,15 +477,18 @@ void MainWindow::populateNicknames()
         } else if (m_nicknameCombo->count() > 0) {
             m_nicknameCombo->setCurrentIndex(0);
         }
-    }
-    if (m_nicknameCombo->lineEdit()) {
-        m_nicknameCombo->lineEdit()->setCursorPosition(0);
-    }
-    m_nicknameCombo->blockSignals(false);
 
-    if (m_skinPreview) {
-        m_skinPreview->setUsername(m_nicknameCombo->currentText().trimmed());
+        if (m_nicknameCombo->lineEdit()) {
+            m_nicknameCombo->lineEdit()->setCursorPosition(0);
+        }
+
+        if (m_skinPreview) {
+            m_skinPreview->setUsername(m_nicknameCombo->currentText().trimmed());
+        }
     }
+
+    m_nicknameCombo->blockSignals(false);
+    updateActionButtonState();
 }
 
 void MainWindow::saveCurrentNickname()
@@ -613,17 +722,49 @@ void MainWindow::onNicknameTextChanged(const QString &text)
     updateActionButtonState();
 }
 
+void MainWindow::onAccountsToggled(bool checked)
+{
+    Settings::instance().setAccountsEnabled(checked);
+    Settings::instance().save();
+    populateNicknames();
+}
+
 void MainWindow::onNicknameIndexChanged(int index)
 {
     if (index < 0) return;
-    QString accId = m_nicknameCombo->itemData(index).toString();
-    if (!accId.isEmpty()) {
-        AccountManager::instance().setActiveAccount(accId);
+
+    if (m_accountsCheck && m_accountsCheck->isChecked()) {
+        QString data = m_nicknameCombo->itemData(index).toString();
+        if (data == QStringLiteral("__manage_accounts__")) {
+            Account active = AccountManager::instance().activeAccount();
+            int prevIdx = m_nicknameCombo->findData(active.id);
+            if (prevIdx >= 0) {
+                m_nicknameCombo->blockSignals(true);
+                m_nicknameCombo->setCurrentIndex(prevIdx);
+                m_nicknameCombo->blockSignals(false);
+            }
+            onOpenAccountManagerClicked();
+            return;
+        }
+
+        if (!data.isEmpty()) {
+            AccountManager::instance().setActiveAccount(data);
+            Account acc = AccountManager::instance().getAccount(data);
+            if (acc.isValid()) {
+                if (m_skinPreview) {
+                    m_skinPreview->setUsername(acc.username);
+                }
+                Settings::instance().setLastNickname(acc.username);
+            }
+        }
+    } else {
+        QString nick = m_nicknameCombo->currentText().trimmed();
+        if (m_skinPreview) {
+            m_skinPreview->setUsername(nick);
+        }
+        Settings::instance().setLastNickname(nick);
     }
-    QString nick = m_nicknameCombo->currentText().trimmed();
-    if (m_skinPreview) {
-        m_skinPreview->setUsername(nick);
-    }
+
     updateActionButtonState();
 }
 
@@ -654,25 +795,37 @@ void MainWindow::onPlayOrDownloadClicked()
     if (version.isEmpty()) {
         version = m_versionCombo->currentText().trimmed();
     }
-    QString username = m_nicknameCombo->currentText().trimmed();
+
+    QString username;
+    Account activeAcc = AccountManager::instance().activeAccount();
+
+    if (m_accountsCheck && m_accountsCheck->isChecked()) {
+        if (!activeAcc.isValid()) {
+            QMessageBox::warning(this, tr("Внимание"), tr("Пожалуйста, добавьте или выберите аккаунт для запуска игры."));
+            onOpenAccountManagerClicked();
+            return;
+        }
+        username = activeAcc.username;
+    } else {
+        username = m_nicknameCombo->currentText().trimmed();
+        if (username.isEmpty()) {
+            QMessageBox::warning(this, tr("Внимание"), tr("Пожалуйста, введите никнейм игрока."));
+            return;
+        }
+
+        if (Settings::instance().validateNickname() && !Utils::isValidNickname(username)) {
+            QMessageBox::warning(this, tr("Некорректный никнейм"),
+                                 tr("Никнейм может содержать от 3 до 16 символов (буквы, цифры и знак подчеркивания)."));
+            return;
+        }
+
+        saveCurrentNickname();
+    }
 
     if (version.isEmpty()) {
         QMessageBox::warning(this, tr("Внимание"), tr("Пожалуйста, выберите версию игры."));
         return;
     }
-
-    if (username.isEmpty()) {
-        QMessageBox::warning(this, tr("Внимание"), tr("Пожалуйста, введите никнейм игрока."));
-        return;
-    }
-
-    if (Settings::instance().validateNickname() && !Utils::isValidNickname(username)) {
-        QMessageBox::warning(this, tr("Некорректный никнейм"),
-                             tr("Никнейм может содержать от 3 до 16 символов (буквы, цифры и знак подчеркивания)."));
-        return;
-    }
-
-    saveCurrentNickname();
 
     if (!isVersionInstalled(version)) {
         // Confirmation before download
@@ -736,11 +889,22 @@ void MainWindow::onPlayOrDownloadClicked()
     LaunchOptions opt;
     opt.username = username;
     opt.uuid = Utils::generateOfflinePlayerUuid(username);
-    Account activeAcc = AccountManager::instance().activeAccount();
-    if (activeAcc.isValid() && activeAcc.username.compare(username, Qt::CaseInsensitive) == 0) {
+    if (m_accountsCheck && m_accountsCheck->isChecked() && activeAcc.isValid()) {
         if (!activeAcc.uuid.isEmpty()) {
             opt.uuid = activeAcc.uuid;
         }
+        if (activeAcc.type.compare(QStringLiteral("elyby"), Qt::CaseInsensitive) == 0) {
+            opt.elyBySkins = activeAcc.useElySkins;
+        } else {
+            opt.elyBySkins = Settings::instance().elyBySkins();
+        }
+    } else if (activeAcc.isValid() && activeAcc.username.compare(username, Qt::CaseInsensitive) == 0) {
+        if (!activeAcc.uuid.isEmpty()) {
+            opt.uuid = activeAcc.uuid;
+        }
+        opt.elyBySkins = Settings::instance().elyBySkins();
+    } else {
+        opt.elyBySkins = Settings::instance().elyBySkins();
     }
     opt.versionId = version;
     opt.gameDir = Settings::instance().effectiveGameDir();
@@ -751,7 +915,6 @@ void MainWindow::onPlayOrDownloadClicked()
     opt.customResolution = true;
     opt.resolutionWidth = Settings::instance().resolutionWidth();
     opt.resolutionHeight = Settings::instance().resolutionHeight();
-    opt.elyBySkins = Settings::instance().elyBySkins();
     opt.launcherName = Constants::LAUNCHER_NAME;
     opt.launcherVersion = Constants::LAUNCHER_VERSION;
 

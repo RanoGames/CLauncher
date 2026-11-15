@@ -36,6 +36,7 @@ namespace Utils {
 
     // Validation
     bool isValidNickname(const QString &nickname);
+    QString sanitizeNickname(const QString &input);
 
     // Offline player UUID (MD5 version 3 RFC 4122 for "OfflinePlayer:<name>")
     QString generateOfflinePlayerUuid(const QString &username);

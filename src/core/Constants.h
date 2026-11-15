@@ -9,7 +9,7 @@ namespace Constants {
 
     // Launcher metadata
     inline const QString LAUNCHER_NAME = QStringLiteral("CLauncher");
-    inline const QString LAUNCHER_VERSION = QStringLiteral("1.0.1");
+    inline const QString LAUNCHER_VERSION = QStringLiteral("1.0.2");
     inline const QString DISCORD_CLIENT_ID = QStringLiteral("1420709615468810403");
 
     // URLs

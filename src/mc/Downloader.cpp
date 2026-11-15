@@ -2,6 +2,7 @@
 #include "core/Constants.h"
 #include "core/Utils.h"
 #include "core/Logger.h"
+#include "core/Settings.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -88,14 +89,24 @@ void Downloader::startDownloadChain(const QString &versionId) {
         if (file.open(QIODevice::ReadOnly)) {
             const QByteArray data = file.readAll();
             file.close();
-            handleVersionJsonDownloaded(versionId, data);
-            return;
+            QJsonParseError parseErr;
+            const QJsonDocument doc = QJsonDocument::fromJson(data, &parseErr);
+            if (parseErr.error == QJsonParseError::NoError && doc.isObject()) {
+                handleVersionJsonDownloaded(versionId, data);
+                return;
+            } else {
+                LOG_WARN(QStringLiteral("Existing version JSON for %1 is corrupted (%2), removing and re-fetching...")
+                             .arg(versionId, parseErr.errorString()));
+                QFile::remove(versionJsonPath);
+            }
         }
     }
 
     // Try finding version URL from cache/manifest
     emit statusChanged(QStringLiteral("Fetching version metadata for %1...").arg(versionId));
-    const QString manifestPath = Constants::defaultCacheDirectory() + QStringLiteral("/version_manifest_v2.json");
+    const QString cacheDir = Settings::instance().effectiveGameDir() + QStringLiteral("/cache");
+    Utils::ensureDirectoryExists(cacheDir);
+    const QString manifestPath = cacheDir + QStringLiteral("/version_manifest_v2.json");
     QString jsonUrl;
 
     if (QFile::exists(manifestPath)) {
@@ -127,26 +138,38 @@ void Downloader::startDownloadChain(const QString &versionId) {
         req.setTransferTimeout(15000);
 
         QNetworkReply *reply = m_nam->get(req);
-        connect(reply, &QNetworkReply::finished, this, [this, reply, versionId]() {
+        connect(reply, &QNetworkReply::finished, this, [this, reply, versionId, manifestPath]() {
             reply->deleteLater();
             if (m_cancelled) return;
 
-            if (reply->error() != QNetworkReply::NoError) {
-                abortAll(QStringLiteral("Failed to fetch version manifest: %1").arg(reply->errorString()));
+            const int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (reply->error() != QNetworkReply::NoError || (statusCode != 0 && statusCode >= 400)) {
+                abortAll(QStringLiteral("Failed to fetch version manifest (HTTP %1): %2")
+                             .arg(statusCode).arg(reply->errorString()));
                 return;
             }
 
             const QByteArray data = reply->readAll();
-            const QJsonDocument doc = QJsonDocument::fromJson(data);
-            QString resolvedUrl;
+            QJsonParseError parseErr;
+            const QJsonDocument doc = QJsonDocument::fromJson(data, &parseErr);
+            if (parseErr.error != QJsonParseError::NoError || !doc.isObject()) {
+                abortAll(QStringLiteral("Failed to parse version manifest: %1").arg(parseErr.errorString()));
+                return;
+            }
 
-            if (doc.isObject()) {
-                const QJsonArray versions = doc.object().value(QStringLiteral("versions")).toArray();
-                for (const auto &v : versions) {
-                    if (v.toObject().value(QStringLiteral("id")).toString() == versionId) {
-                        resolvedUrl = v.toObject().value(QStringLiteral("url")).toString();
-                        break;
-                    }
+            // Cache manifest to effective game directory cache
+            QFile mfile(manifestPath);
+            if (mfile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                mfile.write(data);
+                mfile.close();
+            }
+
+            QString resolvedUrl;
+            const QJsonArray versions = doc.object().value(QStringLiteral("versions")).toArray();
+            for (const auto &v : versions) {
+                if (v.toObject().value(QStringLiteral("id")).toString() == versionId) {
+                    resolvedUrl = v.toObject().value(QStringLiteral("url")).toString();
+                    break;
                 }
             }
 
@@ -162,7 +185,7 @@ void Downloader::startDownloadChain(const QString &versionId) {
 
 void Downloader::fetchVersionJson(const QString &versionId, const QString &jsonUrl) {
     LOG_INFO(QStringLiteral("Fetching version JSON from %1").arg(jsonUrl));
-    emit statusChanged(QStringLiteral("Downloading version definition..."));
+    emit statusChanged(QStringLiteral("Downloading version definition for %1...").arg(versionId));
 
     QNetworkRequest req;
     req.setUrl(QUrl(jsonUrl));
@@ -176,24 +199,59 @@ void Downloader::fetchVersionJson(const QString &versionId, const QString &jsonU
         reply->deleteLater();
         if (m_cancelled) return;
 
-        if (reply->error() != QNetworkReply::NoError) {
-            abortAll(QStringLiteral("Failed to download version JSON: %1").arg(reply->errorString()));
+        const int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (reply->error() != QNetworkReply::NoError || (statusCode != 0 && statusCode >= 400)) {
+            abortAll(QStringLiteral("Failed to download version JSON for %1 (HTTP %2): %3")
+                         .arg(versionId)
+                         .arg(statusCode)
+                         .arg(reply->errorString()));
             return;
         }
 
         const QByteArray data = reply->readAll();
-        // Save version JSON
+
+        // Validate JSON before saving to avoid corrupted file lockout
+        QJsonParseError parseError;
+        const QJsonDocument doc = QJsonDocument::fromJson(data, &parseError);
+        if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+            abortAll(QStringLiteral("Corrupted or invalid version JSON received for %1: %2")
+                         .arg(versionId, parseError.errorString()));
+            return;
+        }
+
         const QString versionDir = QDir(m_minecraftDir).filePath(QStringLiteral("versions/%1").arg(versionId));
         Utils::ensureDirectoryExists(versionDir);
         const QString jsonPath = QDir(versionDir).filePath(QStringLiteral("%1.json").arg(versionId));
+        const QString tmpPath = jsonPath + QStringLiteral(".tmp");
 
-        QFile file(jsonPath);
-        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-            file.write(data);
-            file.close();
+        QFile tmpFile(tmpPath);
+        if (!tmpFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            abortAll(QStringLiteral("Failed to open temporary file for writing: %1").arg(tmpPath));
+            return;
+        }
+        tmpFile.write(data);
+        tmpFile.close();
+
+        // Atomically rename .tmp to .json upon valid JSON syntax
+        QFile::remove(jsonPath);
+        if (!QFile::rename(tmpPath, jsonPath)) {
+            if (QFile::copy(tmpPath, jsonPath)) {
+                QFile::remove(tmpPath);
+            } else {
+                QFile::remove(tmpPath);
+                abortAll(QStringLiteral("Failed to finalize version JSON file: %1").arg(jsonPath));
+                return;
+            }
         }
 
-        handleVersionJsonDownloaded(versionId, data);
+        // If an ancestor version JSON was fetched during hierarchy resolution, resume target version
+        if (versionId != m_targetVersionId && !m_targetVersionId.isEmpty()) {
+            LOG_INFO(QStringLiteral("Ancestor version JSON %1 downloaded; resuming hierarchy for %2")
+                         .arg(versionId, m_targetVersionId));
+            startDownloadChain(m_targetVersionId);
+        } else {
+            handleVersionJsonDownloaded(versionId, data);
+        }
     });
 }
 
@@ -205,61 +263,137 @@ void Downloader::handleVersionJsonDownloaded(const QString &versionId, const QBy
         return;
     }
 
-    QJsonObject versionObj = doc.object();
-    if (!processVersionHierarchy(versionId, versionObj)) {
+    QJsonObject mergedObj;
+    if (!processVersionHierarchy(versionId, mergedObj)) {
         return;
     }
 
-    prepareDownloadQueue(versionId, versionObj);
+    prepareDownloadQueue(versionId, mergedObj);
 }
 
-bool Downloader::processVersionHierarchy(const QString &versionId, QJsonObject &versionObj) {
-    // Check if inheritsFrom is present
-    if (versionObj.contains(QStringLiteral("inheritsFrom"))) {
-        const QString parentId = versionObj.value(QStringLiteral("inheritsFrom")).toString();
-        LOG_INFO(QStringLiteral("Version %1 inherits from parent %2").arg(versionId, parentId));
+bool Downloader::processVersionHierarchy(const QString &versionId, QJsonObject &mergedObj) {
+    // Build the inheritance chain from leaf (target) to root parent:
+    // [leaf, parent, grandparent, ...]
+    QVector<QJsonObject> chain;
+    QSet<QString> visited;
+    QString currentId = versionId;
 
-        const QString parentJsonPath = QDir(m_minecraftDir).filePath(
-            QStringLiteral("versions/%1/%1.json").arg(parentId));
+    while (!currentId.isEmpty()) {
+        if (visited.contains(currentId)) {
+            abortAll(QStringLiteral("Cyclic inheritance detected in version %1").arg(currentId));
+            return false;
+        }
+        visited.insert(currentId);
 
-        if (!QFile::exists(parentJsonPath)) {
-            emit statusChanged(QStringLiteral("Parent version %1 required, resolving...").arg(parentId));
-            // Trigger download of parent version JSON
-            startDownloadChain(parentId);
+        const QString currentJsonPath = QDir(m_minecraftDir).filePath(
+            QStringLiteral("versions/%1/%1.json").arg(currentId));
+
+        if (!QFile::exists(currentJsonPath)) {
+            emit statusChanged(QStringLiteral("Parent version %1 required, resolving...").arg(currentId));
+            LOG_INFO(QStringLiteral("Inheritance requires version %1 which is missing locally, fetching...").arg(currentId));
+            startDownloadChain(currentId);
             return false;
         }
 
-        QFile pFile(parentJsonPath);
-        if (pFile.open(QIODevice::ReadOnly)) {
-            const QJsonDocument pDoc = QJsonDocument::fromJson(pFile.readAll());
-            pFile.close();
+        QFile pFile(currentJsonPath);
+        if (!pFile.open(QIODevice::ReadOnly)) {
+            abortAll(QStringLiteral("Failed to open version file: %1").arg(currentJsonPath));
+            return false;
+        }
 
-            if (pDoc.isObject()) {
-                QJsonObject parentObj = pDoc.object();
+        const QByteArray fData = pFile.readAll();
+        pFile.close();
 
-                // Merge libraries: parent libraries first, then child libraries
-                QJsonArray mergedLibs = parentObj.value(QStringLiteral("libraries")).toArray();
-                const QJsonArray childLibs = versionObj.value(QStringLiteral("libraries")).toArray();
-                for (const auto &cl : childLibs) {
-                    mergedLibs.append(cl);
-                }
-                versionObj[QStringLiteral("libraries")] = mergedLibs;
+        QJsonParseError pError;
+        const QJsonDocument pDoc = QJsonDocument::fromJson(fData, &pError);
+        if (pError.error != QJsonParseError::NoError || !pDoc.isObject()) {
+            LOG_WARN(QStringLiteral("Corrupted version JSON for %1 detected, removing and re-fetching...").arg(currentId));
+            QFile::remove(currentJsonPath);
+            startDownloadChain(currentId);
+            return false;
+        }
 
-                // Client download: if child doesn't specify downloads, inherit from parent
-                if (!versionObj.contains(QStringLiteral("downloads")) && parentObj.contains(QStringLiteral("downloads"))) {
-                    versionObj[QStringLiteral("downloads")] = parentObj.value(QStringLiteral("downloads"));
-                }
+        const QJsonObject curObj = pDoc.object();
+        chain.append(curObj);
 
-                // Asset index: inherit if missing
-                if (!versionObj.contains(QStringLiteral("assetIndex")) && parentObj.contains(QStringLiteral("assetIndex"))) {
-                    versionObj[QStringLiteral("assetIndex")] = parentObj.value(QStringLiteral("assetIndex"));
-                }
-                if (!versionObj.contains(QStringLiteral("assets")) && parentObj.contains(QStringLiteral("assets"))) {
-                    versionObj[QStringLiteral("assets")] = parentObj.value(QStringLiteral("assets"));
-                }
-            }
+        if (curObj.contains(QStringLiteral("inheritsFrom"))) {
+            currentId = curObj.value(QStringLiteral("inheritsFrom")).toString().trimmed();
+        } else {
+            currentId.clear();
         }
     }
+
+    if (chain.isEmpty()) {
+        abortAll(QStringLiteral("No version metadata available for %1").arg(versionId));
+        return false;
+    }
+
+    // Merge chain from root (oldest ancestor: chain.last()) to leaf (target version: chain.first())
+    mergedObj = chain.last();
+    for (int i = chain.size() - 2; i >= 0; --i) {
+        const QJsonObject child = chain[i];
+
+        // 1. Scalar fields: child overrides parent
+        for (const QString &key : {QStringLiteral("mainClass"), QStringLiteral("assets"),
+                                   QStringLiteral("type"), QStringLiteral("releaseTime"),
+                                   QStringLiteral("id")}) {
+            if (child.contains(key) && !child[key].isNull()) {
+                mergedObj[key] = child[key];
+            }
+        }
+
+        // 2. Client download: if child specifies downloads, child wins; otherwise inherit parent
+        if (child.contains(QStringLiteral("downloads")) && child[QStringLiteral("downloads")].isObject()) {
+            const QJsonObject childDls = child.value(QStringLiteral("downloads")).toObject();
+            if (childDls.contains(QStringLiteral("client"))) {
+                mergedObj[QStringLiteral("downloads")] = childDls;
+            }
+        }
+
+        // 3. Asset index: child overrides if present
+        if (child.contains(QStringLiteral("assetIndex")) && child[QStringLiteral("assetIndex")].isObject()) {
+            mergedObj[QStringLiteral("assetIndex")] = child[QStringLiteral("assetIndex")];
+        }
+        if (child.contains(QStringLiteral("assets")) && !child[QStringLiteral("assets")].isNull()) {
+            mergedObj[QStringLiteral("assets")] = child[QStringLiteral("assets")];
+        }
+
+        // 4. minecraftArguments: concatenate strings
+        if (child.contains(QStringLiteral("minecraftArguments"))) {
+            const QString childArgs = child.value(QStringLiteral("minecraftArguments")).toString().trimmed();
+            const QString parentArgs = mergedObj.value(QStringLiteral("minecraftArguments")).toString().trimmed();
+            if (!childArgs.isEmpty()) {
+                mergedObj[QStringLiteral("minecraftArguments")] = parentArgs.isEmpty()
+                    ? childArgs
+                    : QStringLiteral("%1 %2").arg(parentArgs, childArgs);
+            }
+        }
+
+        // 5. arguments { game, jvm }: concatenate arrays
+        if (child.contains(QStringLiteral("arguments")) && child[QStringLiteral("arguments")].isObject()) {
+            QJsonObject mergedArgs = mergedObj.value(QStringLiteral("arguments")).toObject();
+            const QJsonObject childArgs = child.value(QStringLiteral("arguments")).toObject();
+
+            for (const QString &key : {QStringLiteral("game"), QStringLiteral("jvm")}) {
+                QJsonArray items = mergedArgs.value(key).toArray();
+                const QJsonArray add = childArgs.value(key).toArray();
+                for (const auto &item : add) {
+                    items.append(item);
+                }
+                mergedArgs[key] = items;
+            }
+            mergedObj[QStringLiteral("arguments")] = mergedArgs;
+        }
+
+        // 6. Libraries: parent libraries first, then child libraries
+        QJsonArray mergedLibs = mergedObj.value(QStringLiteral("libraries")).toArray();
+        const QJsonArray childLibs = child.value(QStringLiteral("libraries")).toArray();
+        for (const auto &cl : childLibs) {
+            mergedLibs.append(cl);
+        }
+        mergedObj[QStringLiteral("libraries")] = mergedLibs;
+    }
+
     return true;
 }
 
@@ -368,7 +502,20 @@ void Downloader::prepareDownloadQueue(const QString &versionId, const QJsonObjec
             const qint64 size = client.value(QStringLiteral("size")).toInteger(0);
             const QString sha1 = client.value(QStringLiteral("sha1")).toString();
 
-            if (!url.isEmpty() && !Utils::isFileValid(clientJarPath, size, sha1)) {
+            bool hasValidJar = Utils::isFileValid(clientJarPath, size, sha1);
+            if (!hasValidJar && versionData.contains(QStringLiteral("inheritsFrom"))) {
+                const QString parentId = versionData.value(QStringLiteral("inheritsFrom")).toString();
+                const QString parentJar = QDir(m_minecraftDir).filePath(
+                    QStringLiteral("versions/%1/%1.jar").arg(parentId));
+                if (Utils::isFileValid(parentJar, size, sha1)) {
+                    Utils::ensureDirectoryExists(QFileInfo(clientJarPath).absolutePath());
+                    QFile::copy(parentJar, clientJarPath);
+                    hasValidJar = true;
+                    LOG_INFO(QStringLiteral("Reused parent client JAR from %1 for %2").arg(parentId, versionId));
+                }
+            }
+
+            if (!url.isEmpty() && !hasValidJar) {
                 DownloadTask task;
                 task.url = QUrl(url);
                 task.destinationPath = clientJarPath;
@@ -506,8 +653,10 @@ void Downloader::prepareDownloadQueue(const QString &versionId, const QJsonObjec
                     aReply->deleteLater();
                     if (m_cancelled) return;
 
-                    if (aReply->error() != QNetworkReply::NoError) {
-                        LOG_WARN(QStringLiteral("Failed to download asset index %1: %2").arg(indexId, aReply->errorString()));
+                    const int statusCode = aReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                    if (aReply->error() != QNetworkReply::NoError || (statusCode != 0 && statusCode >= 400)) {
+                        LOG_WARN(QStringLiteral("Failed to download asset index %1 (HTTP %2): %3")
+                                     .arg(indexId).arg(statusCode).arg(aReply->errorString()));
                     } else {
                         const QByteArray aData = aReply->readAll();
                         Utils::ensureDirectoryExists(QFileInfo(indexDest).absolutePath());
@@ -672,8 +821,12 @@ void Downloader::onReplyFinished(QNetworkReply *reply) {
         return;
     }
 
-    if (reply->error() != QNetworkReply::NoError) {
-        LOG_WARN(QStringLiteral("Download failed for %1: %2").arg(active.task.url.toString(), reply->errorString()));
+    const int statusCode = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    if (reply->error() != QNetworkReply::NoError || (statusCode != 0 && statusCode >= 400)) {
+        LOG_WARN(QStringLiteral("Download failed for %1 (HTTP %2): %3")
+                     .arg(active.task.url.toString())
+                     .arg(statusCode)
+                     .arg(reply->errorString()));
         QFile::remove(active.tempFilePath);
 
         if (active.task.retryCount < MAX_RETRIES) {

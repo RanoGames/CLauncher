@@ -39,6 +39,7 @@ void Settings::resetToDefaults() {
     m_resolutionHeight = Constants::DEFAULT_RESOLUTION_HEIGHT;
     m_customBackground.clear();
     m_elyBySkins = true;
+    m_accountsEnabled = true;
     m_uiTheme = Constants::DEFAULT_UI_THEME;
     m_autoCheckUpdates = true;
     m_gameDir.clear();
@@ -148,6 +149,7 @@ QJsonObject Settings::toJsonObject() const {
     obj[QStringLiteral("resolution_height")] = m_resolutionHeight;
     obj[QStringLiteral("custom_background")] = m_customBackground.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(m_customBackground);
     obj[QStringLiteral("ely_by_skins")] = m_elyBySkins;
+    obj[QStringLiteral("accounts_enabled")] = m_accountsEnabled;
     obj[QStringLiteral("ui_theme")] = m_uiTheme;
     obj[QStringLiteral("auto_check_updates")] = m_autoCheckUpdates;
 
@@ -234,6 +236,9 @@ void Settings::fromJsonObject(const QJsonObject &obj) {
 
     if (obj.contains(QStringLiteral("ely_by_skins"))) {
         m_elyBySkins = obj[QStringLiteral("ely_by_skins")].toBool(true);
+    }
+    if (obj.contains(QStringLiteral("accounts_enabled"))) {
+        m_accountsEnabled = obj[QStringLiteral("accounts_enabled")].toBool(true);
     }
 
     if (obj.contains(QStringLiteral("ui_theme")) && !obj[QStringLiteral("ui_theme")].isNull()) {
@@ -328,6 +333,11 @@ QString Settings::customBackground() const {
 bool Settings::elyBySkins() const {
     QMutexLocker locker(&m_mutex);
     return m_elyBySkins;
+}
+
+bool Settings::accountsEnabled() const {
+    QMutexLocker locker(&m_mutex);
+    return m_accountsEnabled;
 }
 
 QString Settings::uiTheme() const {
@@ -489,6 +499,15 @@ void Settings::setElyBySkins(bool enabled) {
     {
         QMutexLocker locker(&m_mutex);
         m_elyBySkins = enabled;
+    }
+    emit settingsChanged();
+}
+
+void Settings::setAccountsEnabled(bool enabled) {
+    {
+        QMutexLocker locker(&m_mutex);
+        if (m_accountsEnabled == enabled) return;
+        m_accountsEnabled = enabled;
     }
     emit settingsChanged();
 }

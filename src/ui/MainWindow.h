@@ -2,6 +2,7 @@
 
 #include <QMainWindow>
 #include <QComboBox>
+#include <QCheckBox>
 #include <QPushButton>
 #include <QLabel>
 #include <QProgressBar>
@@ -66,6 +67,7 @@ private slots:
     void onNicknameChanged();
     void onNicknameTextChanged(const QString &text);
     void onNicknameIndexChanged(int index);
+    void onAccountsToggled(bool checked);
 
 private:
     void setupUi();
@@ -95,6 +97,7 @@ private:
 
     // Nickname & Skin
     QLabel *m_nicknameTitleLabel{nullptr};
+    QCheckBox *m_accountsCheck{nullptr};
     SkinPreviewWidget *m_skinPreview{nullptr};
     QComboBox *m_nicknameCombo{nullptr};
     QPushButton *m_deleteNickButton{nullptr};

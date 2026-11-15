@@ -8,8 +8,11 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QLineEdit>
-#include <QComboBox>
-#include <QScrollArea>
+#include <QRadioButton>
+#include <QButtonGroup>
+#include <QCheckBox>
+#include <QListWidget>
+#include <QStackedWidget>
 #include <QFrame>
 
 #include "../core/Account.h"
@@ -27,37 +30,80 @@ public slots:
     void refreshAccounts();
 
 private slots:
-    void onToggleAddForm();
-    void onConfirmAddAccount();
-    void onCancelAddAccount();
-    void onSelectAccount(const QString &accountId);
-    void onDeleteAccount(const QString &accountId, const QString &username);
-    void onNewUsernameChanged(const QString &text);
+    void onAccountListSelectionChanged();
+    void onAddNewAccountClicked();
+    void onDeleteAccountClicked();
+    void onMakeActiveClicked();
+    void onSaveAccountClicked();
+    void onCancelEditClicked();
+    void onTypeRadioToggled();
+    void onInputTextChanged();
+    void onMicrosoftLoginClicked();
 
 private:
     void setupUi();
-    QWidget *createAccountCard(const Account &account, bool isActive);
+    void populateAccountDetails(const Account &acc);
+    void resetFormToNew();
+    QString getEffectiveUsernameFromInputs() const;
+    void updateLiveSkinPreview();
 
-    // Header
+    // Top Header
     QLabel *m_headerTitle{nullptr};
-    QLabel *m_accountCountLabel{nullptr};
-    QPushButton *m_toggleAddButton{nullptr};
+    QLabel *m_headerSubtitle{nullptr};
 
-    // Add Account Form
-    QFrame *m_addFormFrame{nullptr};
-    QComboBox *m_typeCombo{nullptr};
-    QLineEdit *m_usernameInput{nullptr};
+    // Left Pane
+    QLabel *m_leftHeaderLabel{nullptr};
+    QListWidget *m_accountsList{nullptr};
+    QPushButton *m_addBtn{nullptr};
+    QPushButton *m_deleteBtn{nullptr};
+    QPushButton *m_makeActiveBtn{nullptr};
+
+    // Right Pane - Config
+    QFrame *m_configPanel{nullptr};
+    QLabel *m_panelTitleLabel{nullptr};
+
+    // Type Radios
+    QButtonGroup *m_typeGroup{nullptr};
+    QRadioButton *m_radioOffline{nullptr};
+    QRadioButton *m_radioElyBy{nullptr};
+    QRadioButton *m_radioMicrosoft{nullptr};
+
+    // Form Pages
+    QStackedWidget *m_typeStack{nullptr};
+
+    // 1. Offline
+    QWidget *m_offlinePage{nullptr};
+    QLineEdit *m_offlineNickInput{nullptr};
+    QLabel *m_offlineHintLabel{nullptr};
+
+    // 2. Ely.by
+    QWidget *m_elyPage{nullptr};
+    QLineEdit *m_elyLoginInput{nullptr};
+    QLineEdit *m_elyPasswordInput{nullptr};
+    QCheckBox *m_elySkinsCheck{nullptr};
+    QLabel *m_elyHintLabel{nullptr};
+
+    // 3. Microsoft
+    QWidget *m_msPage{nullptr};
+    QLineEdit *m_msEmailInput{nullptr};
+    QPushButton *m_msLoginBtn{nullptr};
+    QLabel *m_msStatusLabel{nullptr};
+    QLabel *m_msHintLabel{nullptr};
+
+    // Live Skin Preview Card
+    QFrame *m_previewCard{nullptr};
     SkinPreviewWidget *m_livePreview{nullptr};
-    QPushButton *m_confirmAddBtn{nullptr};
-    QPushButton *m_cancelAddBtn{nullptr};
-    QLabel *m_validationHint{nullptr};
+    QLabel *m_previewNickLabel{nullptr};
+    QLabel *m_previewSubLabel{nullptr};
 
-    // Card List Area
-    QScrollArea *m_scrollArea{nullptr};
-    QWidget *m_cardsContainer{nullptr};
-    QVBoxLayout *m_cardsLayout{nullptr};
-    QLabel *m_emptyLabel{nullptr};
+    // Right Pane Buttons
+    QPushButton *m_saveBtn{nullptr};
+    QPushButton *m_cancelBtn{nullptr};
 
     // Bottom Bar
-    QPushButton *m_closeButton{nullptr};
+    QPushButton *m_closeBtn{nullptr};
+
+    // State
+    QString m_selectedAccountId;
+    bool m_isCreatingNew = false;
 };
