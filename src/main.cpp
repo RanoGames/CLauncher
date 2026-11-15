@@ -8,6 +8,7 @@
 #include "core/Constants.h"
 #include "core/Logger.h"
 #include "core/Settings.h"
+#include "core/AccountManager.h"
 #include "ui/MainWindow.h"
 
 int main(int argc, char *argv[])
@@ -43,6 +44,8 @@ int main(int argc, char *argv[])
     if (parser.isSet(gameDirOption)) {
         Settings::instance().setGameDir(parser.value(gameDirOption));
     }
+
+    AccountManager::instance().load();
 
     // Apply global stylesheet
     QFile styleFile(QStringLiteral(":/style.qss"));

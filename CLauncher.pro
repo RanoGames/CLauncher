@@ -15,7 +15,9 @@ HEADERS += \
     src/core/Settings.h \
     src/core/PlaytimeTracker.h \
     src/core/CrashAnalyzer.h \
-    src/core/Updater.h
+    src/core/Updater.h \
+    src/core/Account.h \
+    src/core/AccountManager.h
 
 SOURCES += \
     src/core/Logger.cpp \
@@ -23,7 +25,8 @@ SOURCES += \
     src/core/Settings.cpp \
     src/core/PlaytimeTracker.cpp \
     src/core/CrashAnalyzer.cpp \
-    src/core/Updater.cpp
+    src/core/Updater.cpp \
+    src/core/AccountManager.cpp
 
 # Minecraft Engine Module
 HEADERS += \
@@ -57,7 +60,8 @@ HEADERS += \
     src/ui/ConsoleWindow.h \
     src/ui/ModManagerDialog.h \
     src/ui/ModBrowserDialog.h \
-    src/ui/SkinPreviewWidget.h
+    src/ui/SkinPreviewWidget.h \
+    src/ui/AccountManagerDialog.h
 
 SOURCES += \
     src/main.cpp \
@@ -66,7 +70,8 @@ SOURCES += \
     src/ui/ConsoleWindow.cpp \
     src/ui/ModManagerDialog.cpp \
     src/ui/ModBrowserDialog.cpp \
-    src/ui/SkinPreviewWidget.cpp
+    src/ui/SkinPreviewWidget.cpp \
+    src/ui/AccountManagerDialog.cpp
 
 # Resources
 RESOURCES += \

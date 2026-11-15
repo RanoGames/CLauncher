@@ -7,6 +7,9 @@
 #include "../core/CrashAnalyzer.h"
 #include "../mc/JavaManager.h"
 #include "../mc/DiscordRpc.h"
+#include "../core/AccountManager.h"
+#include "../core/Account.h"
+#include "AccountManagerDialog.h"
 
 #include <QPainter>
 #include <QMessageBox>
@@ -123,6 +126,8 @@ void MainWindow::setupUi()
 
     m_skinPreview = new SkinPreviewWidget(m_dockCard);
     m_skinPreview->setGeometry(16, 32, 48, 48);
+    m_skinPreview->setToolTip(tr("Аватар игрока (нажмите для управления аккаунтами)"));
+    m_skinPreview->setCursor(Qt::PointingHandCursor);
 
     m_nicknameCombo = new QComboBox(m_dockCard);
     m_nicknameCombo->setEditable(true);
@@ -173,44 +178,49 @@ void MainWindow::setupUi()
     m_cancelButton->setCursor(Qt::PointingHandCursor);
     m_cancelButton->hide();
 
-    // Dock Bottom Row: Quick Action Pills (7 buttons evenly spaced across 708px)
+    // Dock Bottom Row: Quick Action Pills (8 buttons evenly spaced across 708px)
     const int btnY = 108;
     const int btnH = 44;
-    const int btnW = 96;
-    const int gap = 6;
+    const int btnW = 82;
+    const int gap = 7;
+
+    m_accountsButton = new QPushButton(tr("👥 Аккаунты"), m_dockCard);
+    m_accountsButton->setGeometry(16, btnY, btnW, btnH);
+    m_accountsButton->setProperty("class", "actionPill");
+    m_accountsButton->setToolTip(tr("Управление аккаунтами игроков"));
 
     m_settingsButton = new QPushButton(tr("⚙ Настройки"), m_dockCard);
-    m_settingsButton->setGeometry(16, btnY, btnW, btnH);
+    m_settingsButton->setGeometry(16 + 1 * (btnW + gap), btnY, btnW, btnH);
     m_settingsButton->setProperty("class", "actionPill");
     m_settingsButton->setToolTip(tr("Настройки лаунчера и игры"));
 
     m_modsButton = new QPushButton(tr("🧩 Моды"), m_dockCard);
-    m_modsButton->setGeometry(16 + 1 * (btnW + gap), btnY, btnW, btnH);
+    m_modsButton->setGeometry(16 + 2 * (btnW + gap), btnY, btnW, btnH);
     m_modsButton->setProperty("class", "actionPill");
     m_modsButton->setToolTip(tr("Управление установленными модами"));
 
     m_modBrowserButton = new QPushButton(tr("🌐 Каталог"), m_dockCard);
-    m_modBrowserButton->setGeometry(16 + 2 * (btnW + gap), btnY, btnW, btnH);
+    m_modBrowserButton->setGeometry(16 + 3 * (btnW + gap), btnY, btnW, btnH);
     m_modBrowserButton->setProperty("class", "actionPill");
     m_modBrowserButton->setToolTip(tr("Каталог и установка модов с Modrinth"));
 
     m_folderButton = new QPushButton(tr("📁 Папка"), m_dockCard);
-    m_folderButton->setGeometry(16 + 3 * (btnW + gap), btnY, btnW, btnH);
+    m_folderButton->setGeometry(16 + 4 * (btnW + gap), btnY, btnW, btnH);
     m_folderButton->setProperty("class", "actionPill");
     m_folderButton->setToolTip(tr("Открыть папку Minecraft"));
 
     m_consoleButton = new QPushButton(tr("💻 Консоль"), m_dockCard);
-    m_consoleButton->setGeometry(16 + 4 * (btnW + gap), btnY, btnW, btnH);
+    m_consoleButton->setGeometry(16 + 5 * (btnW + gap), btnY, btnW, btnH);
     m_consoleButton->setProperty("class", "actionPill");
     m_consoleButton->setToolTip(tr("Открыть консоль отладки и логов"));
 
     m_deleteVersionButton = new QPushButton(tr("🗑 Удалить"), m_dockCard);
-    m_deleteVersionButton->setGeometry(16 + 5 * (btnW + gap), btnY, btnW, btnH);
+    m_deleteVersionButton->setGeometry(16 + 6 * (btnW + gap), btnY, btnW, btnH);
     m_deleteVersionButton->setProperty("class", "actionPill");
     m_deleteVersionButton->setToolTip(tr("Удалить выбранную версию с диска"));
 
     m_gitHubButton = new QPushButton(tr("🐙 GitHub"), m_dockCard);
-    m_gitHubButton->setGeometry(16 + 6 * (btnW + gap), btnY, btnW, btnH);
+    m_gitHubButton->setGeometry(16 + 7 * (btnW + gap), btnY, btnW, btnH);
     m_gitHubButton->setProperty("class", "actionPill");
     m_gitHubButton->setToolTip(tr("Открыть страницу проекта на GitHub"));
 
@@ -233,6 +243,8 @@ void MainWindow::setupConnections()
     connect(m_cancelButton, &QPushButton::clicked, this, &MainWindow::onCancelDownloadClicked);
     connect(m_refreshVersionsButton, &QPushButton::clicked, this, &MainWindow::onRefreshVersionsClicked);
     connect(m_deleteNickButton, &QPushButton::clicked, this, &MainWindow::onDeleteNicknameClicked);
+    connect(m_accountsButton, &QPushButton::clicked, this, &MainWindow::onOpenAccountManagerClicked);
+    connect(m_skinPreview, &SkinPreviewWidget::clicked, this, &MainWindow::onOpenAccountManagerClicked);
 
     connect(m_settingsButton, &QPushButton::clicked, this, &MainWindow::onOpenSettingsClicked);
     connect(m_modsButton, &QPushButton::clicked, this, &MainWindow::onOpenModsClicked);
@@ -246,14 +258,34 @@ void MainWindow::setupConnections()
     connect(m_versionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &MainWindow::onVersionIndexChanged);
 
+    // Nickname input - keystroke decoupled from disk writes
     if (m_nicknameCombo->lineEdit()) {
         connect(m_nicknameCombo->lineEdit(), &QLineEdit::textChanged,
-                this, &MainWindow::onNicknameChanged);
-        connect(m_nicknameCombo->lineEdit(), &QLineEdit::editingFinished,
-                this, &MainWindow::onNicknameChanged);
+                this, &MainWindow::onNicknameTextChanged);
     }
     connect(m_nicknameCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &MainWindow::onNicknameChanged);
+            this, &MainWindow::onNicknameIndexChanged);
+
+    // AccountManager synchronization
+    connect(&AccountManager::instance(), &AccountManager::accountAdded,
+            this, &MainWindow::populateNicknames);
+    connect(&AccountManager::instance(), &AccountManager::accountRemoved,
+            this, &MainWindow::populateNicknames);
+    connect(&AccountManager::instance(), &AccountManager::activeAccountChanged,
+            this, [this](const Account &account) {
+        m_nicknameCombo->blockSignals(true);
+        int idx = m_nicknameCombo->findData(account.id);
+        if (idx >= 0) {
+            m_nicknameCombo->setCurrentIndex(idx);
+        } else {
+            m_nicknameCombo->setEditText(account.username);
+        }
+        m_nicknameCombo->blockSignals(false);
+        if (m_skinPreview) {
+            m_skinPreview->setUsername(account.username);
+        }
+        updateActionButtonState();
+    });
 
     // VersionManifest
     connect(&m_manifest, &VersionManifest::manifestLoaded, this, &MainWindow::onManifestLoaded);
@@ -314,16 +346,31 @@ void MainWindow::populateNicknames()
     m_nicknameCombo->blockSignals(true);
     m_nicknameCombo->clear();
 
-    const QStringList nicks = Settings::instance().nicknames();
-    for (const QString &n : nicks) {
-        m_nicknameCombo->addItem(n);
+    const QList<Account> accounts = AccountManager::instance().accounts();
+    for (const Account &acc : accounts) {
+        m_nicknameCombo->addItem(acc.username, acc.id);
     }
 
-    const QString last = Settings::instance().lastNickname();
-    if (!last.isEmpty()) {
-        m_nicknameCombo->setEditText(last);
-    } else if (m_nicknameCombo->count() > 0) {
-        m_nicknameCombo->setCurrentIndex(0);
+    const Account active = AccountManager::instance().activeAccount();
+    if (active.isValid()) {
+        int idx = m_nicknameCombo->findData(active.id);
+        if (idx >= 0) {
+            m_nicknameCombo->setCurrentIndex(idx);
+        } else {
+            m_nicknameCombo->setEditText(active.username);
+        }
+    } else {
+        const QString last = Settings::instance().lastNickname();
+        if (!last.isEmpty()) {
+            int idx = m_nicknameCombo->findText(last);
+            if (idx >= 0) {
+                m_nicknameCombo->setCurrentIndex(idx);
+            } else {
+                m_nicknameCombo->setEditText(last);
+            }
+        } else if (m_nicknameCombo->count() > 0) {
+            m_nicknameCombo->setCurrentIndex(0);
+        }
     }
     if (m_nicknameCombo->lineEdit()) {
         m_nicknameCombo->lineEdit()->setCursorPosition(0);
@@ -338,7 +385,16 @@ void MainWindow::populateNicknames()
 void MainWindow::saveCurrentNickname()
 {
     QString nick = m_nicknameCombo->currentText().trimmed();
-    if (nick.isEmpty()) return;
+    if (nick.isEmpty() || !Utils::isValidNickname(nick)) return;
+
+    Account existing = AccountManager::instance().getAccountByUsername(nick);
+    if (!existing.isValid()) {
+        Account newAcc(nick, QStringLiteral("offline"));
+        AccountManager::instance().addAccount(newAcc);
+        AccountManager::instance().setActiveAccount(newAcc.id);
+    } else {
+        AccountManager::instance().setActiveAccount(existing.id);
+    }
 
     auto &s = Settings::instance();
     s.addNickname(nick);
@@ -545,8 +601,37 @@ void MainWindow::onNicknameChanged()
     if (m_skinPreview) {
         m_skinPreview->setUsername(nick);
     }
-    saveCurrentNickname();
     updateActionButtonState();
+}
+
+void MainWindow::onNicknameTextChanged(const QString &text)
+{
+    QString nick = text.trimmed();
+    if (m_skinPreview) {
+        m_skinPreview->setUsername(nick);
+    }
+    updateActionButtonState();
+}
+
+void MainWindow::onNicknameIndexChanged(int index)
+{
+    if (index < 0) return;
+    QString accId = m_nicknameCombo->itemData(index).toString();
+    if (!accId.isEmpty()) {
+        AccountManager::instance().setActiveAccount(accId);
+    }
+    QString nick = m_nicknameCombo->currentText().trimmed();
+    if (m_skinPreview) {
+        m_skinPreview->setUsername(nick);
+    }
+    updateActionButtonState();
+}
+
+void MainWindow::onOpenAccountManagerClicked()
+{
+    AccountManagerDialog dialog(this);
+    dialog.exec();
+    populateNicknames();
 }
 
 void MainWindow::onDeleteNicknameClicked()
@@ -554,6 +639,10 @@ void MainWindow::onDeleteNicknameClicked()
     QString nick = m_nicknameCombo->currentText().trimmed();
     if (nick.isEmpty()) return;
 
+    Account existing = AccountManager::instance().getAccountByUsername(nick);
+    if (existing.isValid()) {
+        AccountManager::instance().removeAccount(existing.id);
+    }
     Settings::instance().removeNickname(nick);
     Settings::instance().save();
     populateNicknames();
@@ -647,6 +736,12 @@ void MainWindow::onPlayOrDownloadClicked()
     LaunchOptions opt;
     opt.username = username;
     opt.uuid = Utils::generateOfflinePlayerUuid(username);
+    Account activeAcc = AccountManager::instance().activeAccount();
+    if (activeAcc.isValid() && activeAcc.username.compare(username, Qt::CaseInsensitive) == 0) {
+        if (!activeAcc.uuid.isEmpty()) {
+            opt.uuid = activeAcc.uuid;
+        }
+    }
     opt.versionId = version;
     opt.gameDir = Settings::instance().effectiveGameDir();
     opt.javaExecutable = javaResult.javaPath;

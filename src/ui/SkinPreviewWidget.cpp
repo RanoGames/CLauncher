@@ -4,11 +4,13 @@
 
 #include <QPainter>
 #include <QPainterPath>
+#include <QMouseEvent>
 
 SkinPreviewWidget::SkinPreviewWidget(QWidget *parent)
     : QWidget(parent)
 {
     setFixedSize(48, 48);
+    setCursor(Qt::PointingHandCursor);
     setToolTip(tr("Аватар игрока"));
 
     connect(&SkinManager::instance(), &SkinManager::avatarLoaded,
@@ -83,4 +85,12 @@ void SkinPreviewWidget::paintEvent(QPaintEvent *event)
     painter.setPen(QPen(QColor(255, 255, 255, 35), 1.5));
     painter.setBrush(Qt::NoBrush);
     painter.drawRoundedRect(r, radius, radius);
+}
+
+void SkinPreviewWidget::mouseReleaseEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton && rect().contains(event->pos())) {
+        emit clicked();
+    }
+    QWidget::mouseReleaseEvent(event);
 }

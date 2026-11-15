@@ -36,6 +36,7 @@ assets/
 mods/
 settings.json
 playtime.json
+accounts.json
 
 # Archive / distribution files
 *.zip

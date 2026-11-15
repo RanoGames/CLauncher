@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(CLauncher VERSION 1.0.0 LANGUAGES CXX)
+project(CLauncher VERSION 1.0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -42,6 +42,9 @@ set(CORE_SOURCES
     src/core/CrashAnalyzer.cpp
     src/core/Updater.h
     src/core/Updater.cpp
+    src/core/Account.h
+    src/core/AccountManager.h
+    src/core/AccountManager.cpp
 )
 
 set(MC_SOURCES
@@ -81,6 +84,8 @@ set(UI_SOURCES
     src/ui/ModBrowserDialog.cpp
     src/ui/SkinPreviewWidget.h
     src/ui/SkinPreviewWidget.cpp
+    src/ui/AccountManagerDialog.h
+    src/ui/AccountManagerDialog.cpp
 )
 
 set(RESOURCES

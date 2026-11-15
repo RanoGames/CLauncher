@@ -19,9 +19,11 @@ public slots:
 
 signals:
     void avatarLoaded(const QString &username);
+    void clicked();
 
 protected:
     void paintEvent(QPaintEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
 
 private slots:
     void onAvatarLoaded(const QString &username, const QPixmap &avatar);

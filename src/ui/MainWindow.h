@@ -35,6 +35,7 @@ private slots:
     void onCancelDownloadClicked();
     void onRefreshVersionsClicked();
     void onDeleteNicknameClicked();
+    void onOpenAccountManagerClicked();
     void onOpenSettingsClicked();
     void onOpenModsClicked();
     void onOpenModBrowserClicked();
@@ -63,6 +64,8 @@ private slots:
     // Combo boxes
     void onVersionIndexChanged(int index);
     void onNicknameChanged();
+    void onNicknameTextChanged(const QString &text);
+    void onNicknameIndexChanged(int index);
 
 private:
     void setupUi();
@@ -107,6 +110,7 @@ private:
     QPushButton *m_cancelButton{nullptr};
 
     // Quick action pills
+    QPushButton *m_accountsButton{nullptr};
     QPushButton *m_settingsButton{nullptr};
     QPushButton *m_modsButton{nullptr};
     QPushButton *m_modBrowserButton{nullptr};

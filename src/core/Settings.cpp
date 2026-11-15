@@ -519,7 +519,7 @@ void Settings::setGameDir(const QString &dir) {
 
 void Settings::addNickname(const QString &nickname) {
     QString trimmed = nickname.trimmed();
-    if (trimmed.isEmpty()) {
+    if (trimmed.length() < 3 || !Utils::isValidNickname(trimmed)) {
         return;
     }
     {
